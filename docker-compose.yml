@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  animestudio-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: animestudio_api
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - APIFRAME_API_KEY=${APIFRAME_API_KEY}
+      - FISH_AUDIO_API_KEY=${FISH_AUDIO_API_KEY}
+      - DATABASE_URL=${DATABASE_URL}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - STORAGE_DRIVER=${STORAGE_DRIVER:-hostinger_vps}
+      - HOSTINGER_VPS_IP=${HOSTINGER_VPS_IP:-187.127.114.102}
+      - HOSTINGER_VPS_STORAGE_BASE_URL=${HOSTINGER_VPS_STORAGE_BASE_URL:-https://api.mumantij-ai.com/storage}
+      - HOSTINGER_VPS_STORAGE_ROOT=${HOSTINGER_VPS_STORAGE_ROOT:-/var/www/animestudio/storage}
+    env_file:
+      - .env

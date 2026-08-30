@@ -1,0 +1,6 @@
+{
+  "name": "AnimeStudio AI",
+  "description": "Enterprise AI Animation Studio for zero-to-episode screenplay breakdown, character turnaround vaulting, Qwen Image-Edit 4K keyframing, Seedance 2.5 rendering, and timeline orchestration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
