@@ -1,6 +1,5 @@
 import express from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
 import authRoutes from './src/routes/auth.ts';
 import { requireAuth, AuthRequest } from './src/middleware/auth.ts';
 import { db, checkDbReady } from './src/db/index.ts';
@@ -4089,6 +4088,7 @@ app.post("/api/wallet/topup", requireAuth, async (req: AuthRequest, res) => {
 
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
