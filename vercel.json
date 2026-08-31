@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/index.ts"
+    },
+    {
+      "source": "/temp-uploads/(.*)",
+      "destination": "/api/index.ts"
+    },
+    {
+      "source": "/((?!api|temp-uploads).*)",
+      "destination": "/index.html"
+    }
+  ]
+}
