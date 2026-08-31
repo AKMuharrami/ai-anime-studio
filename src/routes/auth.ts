@@ -6,6 +6,8 @@ import { db } from '../db/index.ts';
 import { users, otp_verifications } from '../db/schema.ts';
 import { sendOTP } from '../utils/mailer.ts';
 
+import { requireAuth, AuthRequest } from '../middleware/auth.ts';
+
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-for-dev';
 
@@ -129,6 +131,31 @@ router.post('/login', async (req, res) => {
     });
   } catch (err: any) {
     console.error('Login Error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get Logged-in User Profile
+router.get('/me', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const userResult = await db.select().from(users).where(eq(users.id, req.user.id));
+    if (userResult.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    const user = userResult[0];
+    res.json({
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        wallet_balance: user.wallet_balance
+      }
+    });
+  } catch (err: any) {
+    console.error('Me Fetch Error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

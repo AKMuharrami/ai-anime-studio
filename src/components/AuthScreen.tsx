@@ -3,9 +3,10 @@ import { Mail, Lock, KeyRound, ArrowRight, ShieldCheck } from 'lucide-react';
 
 interface AuthScreenProps {
   onLoginSuccess: (token: string, user: any) => void;
+  onClose?: () => void;
 }
 
-export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
+export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onClose }) => {
   const [mode, setMode] = useState<'login' | 'register' | 'verify'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -91,7 +92,16 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 selection:bg-rose-500 selection:text-white">
       
-      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl">
+      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl relative">
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="absolute top-5 right-5 text-slate-500 hover:text-slate-300 transition-colors h-8 w-8 flex items-center justify-center rounded-full hover:bg-slate-800 text-sm font-bold font-mono"
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        )}
         <div className="mb-8 text-center">
           <div className="mx-auto w-16 h-16 bg-gradient-to-br from-rose-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-rose-500/20 mb-4">
             <ShieldCheck className="w-8 h-8 text-white" />

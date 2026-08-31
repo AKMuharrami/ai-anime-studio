@@ -38,6 +38,8 @@ interface NavbarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   onSpawnSequel: () => void;
+  token: string | null;
+  onOpenAuth: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -57,14 +59,24 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenPythonModal,
   activeTab,
   setActiveTab,
-  onSpawnSequel
+  onSpawnSequel,
+  token,
+  onOpenAuth
 }) => {
   const [apiCredits, setApiCredits] = useState<number | null>(null);
 
   useEffect(() => {
     const fetchCredits = async () => {
+      if (!token) {
+        setApiCredits(0);
+        return;
+      }
       try {
-        const res = await fetch('/api/studio/credits');
+        const res = await fetch('/api/studio/credits', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
         const data = await res.json();
         if (data.success && typeof data.credits === 'number') {
           setApiCredits(data.credits);
@@ -74,7 +86,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     fetchCredits();
     const interval = setInterval(fetchCredits, 15000);
     return () => clearInterval(interval);
-  }, []);
+  }, [token]);
 
   const steps = activeEpisode?.route === 'MANGA_STUDIO' ? [
     { id: 'manga', num: 'C', label: 'AI Manga Studio', sub: 'Qwen-Image-Edit & Pillow Pipeline' }
@@ -186,7 +198,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="flex items-center gap-2">
             
             {/* If on home and project exists: Jump to studio button */}
-            {currentView === 'home' && activeSeries && (
+            {token && currentView === 'home' && activeSeries && (
               <button
                 onClick={onNavigateStudio}
                 className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-semibold transition-colors"
@@ -196,37 +208,49 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
-            {/* Live ApiFrame Credits Pill */}
-            <div 
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-950/40 border border-purple-500/30 text-xs font-mono"
-              title="Live ApiFrame Qwen 2 Pro Generation Credits (Synced in real-time)"
-            >
-              <Cpu className="h-3.5 w-3.5 text-purple-400" />
-              <span className="text-purple-300 font-bold">
-                {apiCredits !== null ? `${apiCredits} Cr` : 'Syncing...'}
-              </span>
-              <span className="text-[10px] text-purple-400/70 hidden xl:inline">
-                (Qwen Pro)
-              </span>
-            </div>
+            {!token ? (
+              <button
+                onClick={onOpenAuth}
+                className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-rose-600 hover:from-amber-400 hover:to-rose-500 text-white font-bold text-xs transition-all shadow-md shadow-amber-500/15 cursor-pointer flex items-center gap-1.5 hover:scale-[1.02]"
+              >
+                <Sparkles className="h-3.5 w-3.5 text-amber-200" />
+                <span>Sign In / Register</span>
+              </button>
+            ) : (
+              <>
+                {/* Live ApiFrame Credits Pill */}
+                <div 
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-950/40 border border-purple-500/30 text-xs font-mono"
+                  title="Live ApiFrame Qwen 2 Pro Generation Credits (Synced in real-time)"
+                >
+                  <Cpu className="h-3.5 w-3.5 text-purple-400" />
+                  <span className="text-purple-300 font-bold">
+                    {apiCredits !== null ? `${apiCredits} Cr` : 'Syncing...'}
+                  </span>
+                  <span className="text-[10px] text-purple-400/70 hidden xl:inline">
+                    (Qwen Pro)
+                  </span>
+                </div>
 
-            {/* Prepaid Wallet Pill with No-Debt Guard */}
-            <button
-              onClick={onOpenTopupModal}
-              className="px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300 font-bold border border-emerald-500/20 text-xs transition-colors flex items-center gap-1.5 shadow-sm shadow-emerald-500/10"
-            >
-              <Plus className="h-3 w-3" />
-              TOP-UP
-            </button>
-            <button
-              onClick={() => {
-                localStorage.removeItem('ais_token');
-                window.location.reload();
-              }}
-              className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white font-bold border border-slate-700 text-xs transition-colors shadow-sm"
-            >
-              Sign Out
-            </button>
+                {/* Prepaid Wallet Pill with No-Debt Guard */}
+                <button
+                  onClick={onOpenTopupModal}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300 font-bold border border-emerald-500/20 text-xs transition-colors flex items-center gap-1.5 shadow-sm shadow-emerald-500/10"
+                >
+                  <Plus className="h-3 w-3" />
+                  TOP-UP
+                </button>
+                <button
+                  onClick={() => {
+                    localStorage.removeItem('ais_token');
+                    window.location.reload();
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white font-bold border border-slate-700 text-xs transition-colors shadow-sm"
+                >
+                  Sign Out
+                </button>
+              </>
+            )}
           </div>
 
         </div>

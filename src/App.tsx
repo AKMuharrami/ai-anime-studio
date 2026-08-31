@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { AuthScreen } from './components/AuthScreen';
 import { Navbar } from './components/Navbar';
 import { StudioHomePage } from './components/StudioHomePage';
 import { ProjectRouterModal } from './components/ProjectRouterModal';
@@ -23,6 +24,11 @@ import {
 import { Series, Episode, Character, Environment, Scene, ScreenplayData, ProjectRoute } from './types';
 
 export default function App() {
+  // Auth & Session state
+  const [token, setToken] = useState<string | null>(localStorage.getItem('ais_token'));
+  const [authLoading, setAuthLoading] = useState(!!token);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+
   // Navigation View: 'home' | 'studio'
   const [currentView, setCurrentView] = useState<'home' | 'studio'>('home');
   const [homepageMode, setHomepageMode] = useState<'anime' | 'manga'>('manga');
@@ -56,6 +62,31 @@ export default function App() {
   const currentEnvironments = environments.filter(e => e.series_id === activeSeries?.id);
   const currentScenes = scenes.filter(s => s.episode_id === activeEpisode?.id);
 
+  // Sync user profile if token exists
+  useEffect(() => {
+    if (token) {
+      setAuthLoading(true);
+      fetch('/api/auth/me', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+        .then(async (res) => {
+          if (!res.ok) throw new Error('Token verification failed');
+          const data = await res.json();
+          setUser(data.user);
+        })
+        .catch((err) => {
+          console.error('Session authentication failed:', err);
+          localStorage.removeItem('ais_token');
+          setToken(null);
+        })
+        .finally(() => {
+          setAuthLoading(false);
+        });
+    } else {
+      setAuthLoading(false);
+    }
+  }, [token]);
+
   // Sync state when series changes
   const handleSelectSeries = (s: Series) => {
     setActiveSeries(s);
@@ -70,11 +101,31 @@ export default function App() {
   };
 
   // Top-up Handler (Prepaid balance)
-  const handleTopup = (amount: number) => {
-    setUser(prev => ({
-      ...prev,
-      wallet_balance: prev.wallet_balance + amount
-    }));
+  const handleTopup = async (amount: number) => {
+    try {
+      const res = await fetch('/api/wallet/topup', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ amount })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setUser(prev => ({
+          ...prev,
+          wallet_balance: data.new_balance
+        }));
+      }
+    } catch (e) {
+      console.error('Topup error:', e);
+      // Fallback optimistic UI
+      setUser(prev => ({
+        ...prev,
+        wallet_balance: prev.wallet_balance + amount
+      }));
+    }
   };
 
   // Token Deduction Engine
@@ -88,26 +139,70 @@ export default function App() {
       return false;
     }
     
-    // Deduct immediately in optimistic UI state
-    setUser(prev => ({
-      ...prev,
-      wallet_balance: Math.max(0, prev.wallet_balance - usdCost)
-    }));
-    
-    // In a full production build, we'd hit /api/wallet/deduct here.
-    return true;
+    try {
+      const res = await fetch('/api/wallet/deduct', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ amount: usdCost })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setUser(prev => ({
+          ...prev,
+          wallet_balance: data.new_balance
+        }));
+        return true;
+      } else {
+        throw new Error(data.error || 'Deduction failed');
+      }
+    } catch (e) {
+      console.error('Deduction error:', e);
+      // Fallback optimistic UI state
+      setUser(prev => ({
+        ...prev,
+        wallet_balance: Math.max(0, prev.wallet_balance - usdCost)
+      }));
+      return true;
+    }
   };
 
-  const handleSubscribe = (tier: string) => {
-    setUser(prev => ({
-      ...prev,
-      subscription_tier: tier as any,
-      subscription_status: 'ACTIVE'
-    }));
+  const handleSubscribe = async (tier: string) => {
+    try {
+      const res = await fetch('/api/wallet/subscribe', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ tier })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setUser(prev => ({
+          ...prev,
+          subscription_tier: tier as any,
+          subscription_status: 'ACTIVE'
+        }));
+      }
+    } catch (e) {
+      console.error('Subscription error:', e);
+      setUser(prev => ({
+        ...prev,
+        subscription_tier: tier as any,
+        subscription_status: 'ACTIVE'
+      }));
+    }
   };
 
   // Homepage: Click Route A or Route B or Preset
   const handleSelectRouteAndCreate = (route: ProjectRoute, preset?: any) => {
+    if (!token) {
+      setIsAuthOpen(true);
+      return;
+    }
     setModalInitialRoute(route);
     setModalInitialPreset(preset || null);
     setIsProjectRouterOpen(true);
@@ -115,6 +210,10 @@ export default function App() {
 
   // Homepage: Click Resume Project
   const handleResumeProject = (series: Series, episode: Episode, step: string = 'script') => {
+    if (!token) {
+      setIsAuthOpen(true);
+      return;
+    }
     setActiveSeries(series);
     setActiveEpisode(episode);
     setActiveTab(step);
@@ -278,6 +377,19 @@ export default function App() {
     setCurrentView('studio');
   };
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center animate-spin">
+            <div className="w-6 h-6 border-2 border-rose-500 border-t-transparent rounded-full" />
+          </div>
+          <p className="text-sm font-mono text-slate-400">Authenticating Anime Studio Workspace...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-rose-500 selection:text-white">
       
@@ -304,6 +416,8 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onSpawnSequel={() => handleSpawnSequel()}
+        token={token}
+        onOpenAuth={() => setIsAuthOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -468,6 +582,19 @@ export default function App() {
         onTopup={handleTopup}
         onSubscribe={handleSubscribe}
       />
+
+      {isAuthOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-fadeIn">
+          <AuthScreen
+            onLoginSuccess={(tok, loggedInUser) => {
+              setToken(tok);
+              setUser(loggedInUser);
+              setIsAuthOpen(false);
+            }}
+            onClose={() => setIsAuthOpen(false)}
+          />
+        </div>
+      )}
 
       {/* Footer */}
       <footer className="border-t border-slate-800/80 bg-slate-950 py-6 text-xs text-slate-500">

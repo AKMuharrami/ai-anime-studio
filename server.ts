@@ -28,6 +28,9 @@ if (!fs.existsSync(tempUploadsDir)) {
 }
 app.use('/temp-uploads', express.static(tempUploadsDir));
 
+// Mount auth routes
+app.use('/api/auth', authRoutes);
+
 // ============================================================================
 // Official API Credentials & Configuration
 // ============================================================================
@@ -2028,36 +2031,62 @@ app.post(["/api/webhooks/apiframe", "/api/webhooks/seedance-render"], express.js
 });
 
 // Dedicated live ApiFrame credit & balance checker endpoint
-app.get("/api/studio/credits", async (req, res) => {
+app.get("/api/studio/credits", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const meRes = await fetch('https://api.apiframe.ai/v2/me', {
-      headers: { 'X-API-Key': APIFRAME_API_KEY }
-    });
+    const adminEmail = "akmuharrami@gmail.com";
+    if (req.user && req.user.email === adminEmail) {
+      const meRes = await fetch('https://api.apiframe.ai/v2/me', {
+        headers: { 'X-API-Key': APIFRAME_API_KEY }
+      });
 
-    if (meRes.ok) {
-      const meData: any = await meRes.json();
+      if (meRes.ok) {
+        const meData: any = await meRes.json();
+        return res.json({
+          success: true,
+          credits: meData.team?.credits ?? meData.credits ?? 0,
+          team_name: meData.team?.name || "Anime Studio Production",
+          email: meData.email || "akmuharrami@gmail.com",
+          plan: meData.team?.plan || "Standard Pro",
+          model: "qwen-image-2-pro",
+          status: "ACTIVE"
+        });
+      }
+
       return res.json({
         success: true,
-        credits: meData.team?.credits ?? meData.credits ?? 0,
-        team_name: meData.team?.name || "Anime Studio Production",
-        email: meData.email || "akmuharrami@gmail.com",
-        plan: meData.team?.plan || "Standard Pro",
+        credits: 75,
+        model: "qwen-image-2-pro",
+        status: "ACTIVE_FALLBACK"
+      });
+    } else {
+      // For any other signed-in user, their credits correspond to their purchased prepaid balance (wallet_balance) or 0 if empty
+      let userBalance = 0;
+      if (req.user) {
+        try {
+          checkDbReady();
+          const userResult = await db.select().from(users).where(eq(users.id, req.user.id));
+          if (userResult.length > 0) {
+            userBalance = userResult[0].wallet_balance;
+          }
+        } catch (dbErr) {
+          userBalance = 0;
+        }
+      }
+      return res.json({
+        success: true,
+        credits: Math.floor(userBalance), // Credits represent their topped-up balance 1:1, defaulting to 0
+        team_name: "Personal Workspace",
+        email: req.user?.email,
+        plan: "Community",
         model: "qwen-image-2-pro",
         status: "ACTIVE"
       });
     }
-
-    res.json({
-      success: true,
-      credits: 75,
-      model: "qwen-image-2-pro",
-      status: "ACTIVE_FALLBACK"
-    });
   } catch (err: any) {
     res.json({
       success: false,
       error: err.message,
-      credits: 75
+      credits: 0
     });
   }
 });
@@ -4081,6 +4110,48 @@ app.post("/api/wallet/topup", requireAuth, async (req: AuthRequest, res) => {
     }
     console.error("Error topping up wallet:", error);
     res.status(500).json({ error: error.message || "Failed to topup wallet" });
+  }
+});
+
+app.post("/api/wallet/deduct", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    checkDbReady();
+    const { amount } = req.body;
+    const usdCost = parseFloat(amount) || 0;
+    
+    if (usdCost <= 0) {
+      return res.status(400).json({ error: "Deduction amount must be strictly greater than $0.00" });
+    }
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const userResult = await db.select().from(users).where(eq(users.id, req.user.id));
+    if (userResult.length === 0) return res.status(404).json({ error: 'User not found' });
+    
+    const user = userResult[0];
+    if (user.wallet_balance < usdCost) {
+      return res.status(400).json({ error: "Insufficient prepaid wallet balance" });
+    }
+
+    const newBalance = Math.max(0, user.wallet_balance - usdCost);
+    await db.update(users).set({ wallet_balance: newBalance }).where(eq(users.id, req.user.id));
+
+    res.json({
+      success: true,
+      message: `Successfully deducted $${usdCost.toFixed(2)} for generation.`,
+      new_balance: newBalance
+    });
+  } catch (error: any) {
+    if (error.message.includes('DATABASE_URL')) {
+      const { amount } = req.body;
+      const usdCost = parseFloat(amount) || 0;
+      return res.json({
+        success: true,
+        message: `[MOCK] Successfully deducted $${usdCost.toFixed(2)} for generation.`,
+        new_balance: Math.max(0, 1420.50 - usdCost)
+      });
+    }
+    console.error("Error deducting balance:", error);
+    res.status(500).json({ error: error.message || "Failed to deduct balance" });
   }
 });
 
