@@ -23,6 +23,7 @@ import {
 import { Episode, Series, ScriptSceneData, ScreenplayData, Character, Environment } from '../types';
 
 interface ScriptTimelineParserTabProps {
+  deductTokens: (cost: number, reason: string) => Promise<boolean>;
   activeEpisode: Episode | null;
   activeSeries: Series | null;
   onUpdateEpisodeScript: (scriptData: ScreenplayData) => void;
@@ -35,11 +36,11 @@ export const ScriptTimelineParserTab: React.FC<ScriptTimelineParserTabProps> = (
   activeSeries,
   onUpdateEpisodeScript,
   onProceedToVault,
-  onBatchAddEntities
+  onBatchAddEntities,
+  deductTokens
 }) => {
-  const [plotInput, setPlotInput] = useState(
-    activeEpisode?.full_script_json?.synopsis ||
-    'Detective Ren investigates a malfunctioning neural archive in Neo-Kyoto Sector 4. Commander Tariq Al-Mansoor defends the memory monolith from corporate deletion. The confrontation escalates as autonomous defense droids deploy.'
+    const [plotInput, setPlotInput] = useState(
+    activeEpisode?.full_script_json?.synopsis || ''
   );
   const [sceneCountTarget, setSceneCountTarget] = useState<number>(6);
   const [isParsing, setIsParsing] = useState(false);
@@ -62,7 +63,7 @@ export const ScriptTimelineParserTab: React.FC<ScriptTimelineParserTabProps> = (
       label: 'Cyber-Soul Infiltration (6-Scene Arc)',
       route: 'FULL_EPISODE',
       sceneCount: 6,
-      prompt: 'In Neo-Kyoto 2099, Detective Ren investigates illegal neural ether extraction in Sector 4. Commander Tariq Al-Mansoor and Archivist Vorn defend the central cryo-vault to preserve classified souls. Enforcer Kage intercepts them on the skyscraper helipad before a dawn override.'
+      prompt: 'In Neo-Kyoto 2099, Detective Ren investigates illegal neural ether extraction in Sector 4. Zayd and Archivist Vorn defend the central cryo-vault to preserve classified souls. Enforcer Kage intercepts them on the skyscraper helipad before a dawn override.'
     },
     {
       label: 'Glacial Citadel Siege (8-Scene Epic)',
@@ -132,42 +133,42 @@ export const ScriptTimelineParserTab: React.FC<ScriptTimelineParserTabProps> = (
       scenes: [
         {
           scene_index: 1,
-          location_name: 'Neo-Kyoto Sector 4 Alleyway',
-          characters_present: ['Ren Takahashi'],
-          action_prompt: 'High-contrast neon alleyway rain sequence. Ren walks through mist, his cybernetic eye pulsing faint cobalt.',
+          location_name: 'Grand Data Archive Entrance',
+          characters_present: ['Tariq'],
+          action_prompt: 'High-contrast architectural layout. Tariq walks through the majestic gates, wearing modest long coats and observing the ancient mechanisms.',
           camera_action: 'Low-angle tracking crane shot moving forward at 24fps with cinematic depth of field',
           estimated_duration: isFull ? 45 : 8,
           dialogue: [
-            { speaker: 'Ren Takahashi', line: 'The frequency is bleeding through the subnet. He is close.', emotion: 'Gravely serious' }
+            { speaker: 'Tariq', line: 'The frequency is bleeding through the subnet. He is close.', emotion: 'Gravely serious' }
           ]
         },
         {
           scene_index: 2,
-          location_name: 'Sub-Zero Cognitive Server Vault',
-          characters_present: ['Ren Takahashi', 'Commander Tariq Al-Mansoor'],
-          action_prompt: 'Ren enters the cryogenic server hall. Commander Tariq turns, adjusting his armored cloak as neural cables glow around the terminal.',
+          location_name: 'Historical Repository Mainframe',
+          characters_present: ['Tariq', 'Zayd'],
+          action_prompt: 'Tariq enters the repository. Zayd turns, adjusting his modest armored cloak, organizing the illuminated data scrolls.',
           camera_action: 'Dual medium over-the-shoulder cuts, whipping 180-degree camera arc',
           estimated_duration: isFull ? 50 : 10,
           dialogue: [
-            { speaker: 'Commander Tariq Al-Mansoor', line: 'Hold your position, Detective. These memory archives hold records corporate enforcers tried to erase.', emotion: 'Commanding baritone' },
-            { speaker: 'Ren Takahashi', line: 'I know enough. You broke three firewalls to protect a classified soul.', emotion: 'Tactical' }
+            { speaker: 'Zayd', line: 'Hold your position, Detective. These memory archives hold records corporate enforcers tried to erase.', emotion: 'Commanding baritone' },
+            { speaker: 'Tariq', line: 'I know enough. You broke three firewalls to protect a classified soul.', emotion: 'Tactical' }
           ]
         },
         {
           scene_index: 3,
-          location_name: 'Sub-Zero Cognitive Server Vault',
-          characters_present: ['Ren Takahashi', 'Commander Tariq Al-Mansoor'],
+          location_name: 'Historical Repository Mainframe',
+          characters_present: ['Tariq', 'Zayd'],
           action_prompt: 'Ceiling klaxons flash crimson as defense turrets deploy. Ren and Tariq simultaneously draw weapons in a back-to-back tactical stance.',
           camera_action: 'Dynamic 360-degree orbital rotation with anime speed lines',
           estimated_duration: isFull ? 55 : 8,
           dialogue: [
-            { speaker: 'Commander Tariq Al-Mansoor', line: 'Aethel Corps deployed combat droids. We neutralize them together!', emotion: 'Adrenaline rush' }
+            { speaker: 'Zayd', line: 'Aethel Corps deployed combat droids. We neutralize them together!', emotion: 'Adrenaline rush' }
           ]
         },
         {
           scene_index: 4,
           location_name: 'Under-Grid Cipher Lounge',
-          characters_present: ['Ren Takahashi', 'Archivist Vorn', 'Commander Tariq Al-Mansoor'],
+          characters_present: ['Tariq', 'Archivist Vorn', 'Zayd'],
           action_prompt: 'Taking refuge in an underground neon cipher den, Archivist Vorn decrypts the memory core on a holographic table.',
           camera_action: 'Slow orbital push in with holographic UI particles floating in foreground',
           estimated_duration: isFull ? 45 : 8,
@@ -178,7 +179,7 @@ export const ScriptTimelineParserTab: React.FC<ScriptTimelineParserTabProps> = (
         {
           scene_index: 5,
           location_name: 'Aethel Tower Helipad Overlook',
-          characters_present: ['Ren Takahashi', 'Commander Tariq Al-Mansoor', 'Enforcer Kage'],
+          characters_present: ['Tariq', 'Zayd', 'Enforcer Kage'],
           action_prompt: 'Bursting onto the rooftop in a torrential storm, Enforcer Kage intercepts them with a plasma blade as lightning strikes.',
           camera_action: 'Extreme wide dynamic crane shot pulling up into the stormy sky',
           estimated_duration: isFull ? 55 : 10,
@@ -189,12 +190,12 @@ export const ScriptTimelineParserTab: React.FC<ScriptTimelineParserTabProps> = (
         {
           scene_index: 6,
           location_name: 'Orbital Uplink Spire Pinnacle',
-          characters_present: ['Ren Takahashi', 'Commander Tariq Al-Mansoor'],
+          characters_present: ['Tariq', 'Zayd'],
           action_prompt: 'With Enforcer Kage disarmed, Ren inserts the decrypted key into the broadcasting terminal as sunrise breaks through the clouds.',
           camera_action: 'Epic panoramic pull-back revealing dawn glowing across the skyline',
           estimated_duration: isFull ? 50 : 8,
           dialogue: [
-            { speaker: 'Ren Takahashi', line: 'The broadcast is live. The city will remember everything.', emotion: 'Triumphant' }
+            { speaker: 'Tariq', line: 'The broadcast is live. The city will remember everything.', emotion: 'Triumphant' }
           ]
         }
       ]
@@ -272,13 +273,13 @@ export const ScriptTimelineParserTab: React.FC<ScriptTimelineParserTabProps> = (
     const newIndex = scriptData.scenes.length + 1;
     const newScene: ScriptSceneData = {
       scene_index: newIndex,
-      location_name: detectedLocations[0] || 'Neo-Kyoto Sector 4 Alleyway',
-      characters_present: detectedCharacters.length > 0 ? [detectedCharacters[0]] : ['Ren Takahashi'],
+      location_name: detectedLocations[0] || 'Grand Data Archive Entrance',
+      characters_present: detectedCharacters.length > 0 ? [detectedCharacters[0]] : ['Tariq'],
       action_prompt: 'Continuous cinematic tracking shot as characters advance into the new sector.',
       camera_action: 'Slow anime crane push with ambient lens flare',
       estimated_duration: activeEpisode?.route === 'FULL_EPISODE' ? 45 : 8,
       dialogue: [
-        { speaker: detectedCharacters[0] || 'Ren Takahashi', line: 'Keep your guard up. We are crossing the perimeter.', emotion: 'Tactical' }
+        { speaker: detectedCharacters[0] || 'Tariq', line: 'Keep your guard up. We are crossing the perimeter.', emotion: 'Tactical' }
       ]
     };
     const newScenes = [...scriptData.scenes, newScene];

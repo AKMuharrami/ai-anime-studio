@@ -27,6 +27,7 @@ import { Series, Episode, Scene, Character, DialogueLine } from '../types';
 import { SceneMediaPlayer } from './SceneMediaPlayer';
 
 interface SoundVoiceStudioTabProps {
+  deductTokens: (cost: number, reason: string) => Promise<boolean>;
   activeSeries: Series | null;
   activeEpisode: Episode | null;
   scenes: Scene[];
@@ -100,7 +101,8 @@ export const SoundVoiceStudioTab: React.FC<SoundVoiceStudioTabProps> = ({
   characters,
   onUpdateScene,
   onProceedToTimeline,
-  onBackToSeedance
+  onBackToSeedance,
+  deductTokens
 }) => {
   const [selectedSceneId, setSelectedSceneId] = useState<string>(scenes[0]?.id || '');
   const activeScene = scenes.find(s => s.id === selectedSceneId) || scenes[0];
@@ -444,311 +446,57 @@ export const SoundVoiceStudioTab: React.FC<SoundVoiceStudioTabProps> = ({
         </div>
       </div>
 
-      {/* Main Grid: Left = Step-by-Step Vocal Booth & Foley, Right = Live Video & Mixer */}
+      {/* Main Grid: Left = Spacious Video Viewport & Audio Mixer (7 cols), Right = Neural Dialogue & Foley (5 cols) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        {/* LEFT COLUMN: Step-by-Step Audio Pipeline (7 cols) */}
+        {/* LEFT COLUMN: Spacious Viewport & Mixer (7 cols) */}
         <div className="lg:col-span-7 space-y-6">
           
-          {/* PHASE 1: FISH AUDIO VOCAL BOOTH & SMART SOUNDSCAPE ADAPTOR */}
-          <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 space-y-5">
-            
-            {/* AI Smart Adaptation Banner */}
-            <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-950/40 via-purple-950/30 to-slate-900 border border-amber-500/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-amber-400 animate-pulse" />
-                  <span className="text-xs font-bold text-amber-200 font-mono uppercase tracking-wider">
-                    Smart AI Adaptive Audio & Vocal Engineer
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-300">
-                  Analyze scene location ({activeScene?.location_name || 'Anime Scene'}), lighting ({activeScene?.lighting_mood || 'Moody'}), and dialogue to automatically pick matching background Foley soundscapes & vocal performance emotions.
-                </p>
-                {acousticProfile && (
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-mono">
-                      Foley: {acousticProfile.foley_name}
-                    </span>
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30 font-mono">
-                      Acoustics: {acousticProfile.room_reverb}
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-mono">
-                      "{acousticProfile.spatial_description}"
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              <button
-                type="button"
-                onClick={handleAdaptSoundscape}
-                disabled={isAdaptingSoundscape}
-                className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs font-mono transition-all flex items-center gap-2 disabled:opacity-50 cursor-pointer shrink-0 shadow-lg shadow-amber-500/10"
-              >
-                {isAdaptingSoundscape ? (
-                  <RefreshCw className="h-4 w-4 animate-spin text-slate-950" />
-                ) : (
-                  <Sparkles className="h-4 w-4 text-slate-950" />
-                )}
-                <span>{isAdaptingSoundscape ? 'Analyzing Acoustics...' : 'Smart Adapt Soundscape & Vocals'}</span>
-              </button>
-            </div>
-
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
-              <div className="flex items-center gap-2.5">
-                <div className="h-8 w-8 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400">
-                  <Radio className="h-4 w-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-white uppercase tracking-wider font-mono">
-                    Phase 1: Fish Audio Vocal Booth
-                  </h3>
-                  <p className="text-[11px] text-slate-400">
-                    Line-by-line character voice casting and neural speech generation
-                  </p>
-                </div>
-              </div>
-
-              {/* Batch Actions */}
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleBatchSynthesizeScene}
-                  disabled={isBatchSynthesizingScene || isBatchSynthesizingAll || dialogueLines.length === 0}
-                  className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold font-mono transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-sm"
-                >
-                  {isBatchSynthesizingScene ? (
-                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Sparkles className="h-3.5 w-3.5" />
-                  )}
-                  <span>Synthesize Scene Lines</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleBatchSynthesizeAllScenes}
-                  disabled={isBatchSynthesizingScene || isBatchSynthesizingAll}
-                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer border border-slate-700"
-                >
-                  {isBatchSynthesizingAll ? (
-                    <RefreshCw className="h-3.5 w-3.5 animate-spin text-amber-400" />
-                  ) : (
-                    <Layers className="h-3.5 w-3.5 text-amber-400" />
-                  )}
-                  <span>Batch All ({batchProgress}%)</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Dialogue Lines List */}
-            {dialogueLines.length === 0 ? (
-              <div className="p-8 text-center border border-dashed border-slate-800 rounded-2xl text-slate-500 text-xs font-mono space-y-2">
-                <p>No dialogue lines assigned for this scene.</p>
-                <p className="text-[11px] text-slate-600">You can add dialogue lines in Step 1 (Screenplay Parser).</p>
-              </div>
-            ) : (
-              <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
-                {dialogueLines.map((line, idx) => {
-                  const isSynthesizing = synthesizingLineIdx === idx;
-                  const isPreviewing = activePreviewAudioIndex === idx;
-                  const hasAudio = !!line.audio_url;
-
-                  return (
-                    <div 
-                      key={idx}
-                      className={`p-4 rounded-2xl border transition-all ${
-                        hasAudio 
-                          ? 'bg-slate-950/80 border-emerald-500/30' 
-                          : 'bg-slate-950/40 border-slate-800 hover:border-slate-700'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-3 mb-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-xs font-bold text-amber-300 font-mono">
-                            {line.speaker}
-                          </span>
-                          <span className={`h-1.5 w-1.5 rounded-full ${hasAudio ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-                          <span className="text-[10px] text-slate-400 font-mono truncate">
-                            Take #{idx + 1}
-                          </span>
-                        </div>
-
-                        {/* Line Voice & Emotion Selectors */}
-                        <div className="flex items-center gap-2 shrink-0">
-                          <select
-                            value={line.emotion || 'Neutral'}
-                            onChange={(e) => handleUpdateLineField(idx, 'emotion', e.target.value)}
-                            className="bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-[10px] font-mono text-slate-300 focus:outline-none focus:border-amber-500"
-                          >
-                            {EMOTION_PRESETS.map(em => (
-                              <option key={em} value={em}>{em}</option>
-                            ))}
-                          </select>
-
-                          <select
-                            value={line.fish_voice_token || 'FISH_VOICE_JP_MALE_TACTICAL_BARITONE_01'}
-                            onChange={(e) => handleUpdateLineField(idx, 'fish_voice_token', e.target.value)}
-                            className="bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-[10px] font-mono text-slate-300 focus:outline-none focus:border-amber-500 max-w-[140px] truncate"
-                          >
-                            {VOICE_PRESETS.map(vp => (
-                              <option key={vp.id} value={vp.id}>{vp.name}</option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-
-                      {/* Dialogue Text Content */}
-                      <p className="text-xs text-slate-200 leading-relaxed font-sans bg-slate-900/40 p-2.5 rounded-xl border border-slate-800/60 mb-3">
-                        "{line.line}"
-                      </p>
-
-                      {/* Audio Controls & Synthesis Button */}
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handlePlayLineAudio(line, idx)}
-                            className={`px-3 py-1 rounded-xl text-xs font-mono flex items-center gap-1.5 transition-all cursor-pointer ${
-                              isPreviewing
-                                ? 'bg-emerald-500 text-slate-950 font-bold'
-                                : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
-                            }`}
-                          >
-                            {isPreviewing ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
-                            <span>{isPreviewing ? 'Playing Take' : hasAudio ? 'Audition Line' : 'Test Speech'}</span>
-                          </button>
-
-                          {hasAudio && (
-                            <span className="text-[10px] text-emerald-400 font-mono flex items-center gap-1">
-                              <Check className="h-3 w-3" /> 48kHz Master Ready
-                            </span>
-                          )}
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => handleSynthesizeSingleLine(idx)}
-                          disabled={isSynthesizing}
-                          className="px-3 py-1 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-mono font-bold transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
-                        >
-                          {isSynthesizing ? (
-                            <RefreshCw className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <Mic className="h-3 w-3" />
-                          )}
-                          <span>{hasAudio ? 'Re-Take Line' : 'Synthesize Fish Voice'}</span>
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* PHASE 2: ACOUSTIC FOLEY & SFX ARRANGEMENT */}
-          <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 space-y-4">
+          {/* PHASE 4: SYNCHRONIZED SCENE MEDIA PLAYER */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-lg">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="h-8 w-8 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-                  <Volume2 className="h-4 w-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-white uppercase tracking-wider font-mono">
-                    Phase 2: Acoustic Foley & SFX Arranger
-                  </h3>
-                  <p className="text-[11px] text-slate-400">
-                    Atmospheric environmental soundscapes (100% Halal • Zero Musical Instruments)
-                  </p>
-                </div>
+              <div className="flex items-center gap-2">
+                <Film className="h-4 w-4 text-amber-400" />
+                <h3 className="font-bold text-slate-100 text-sm">
+                  Scene {activeScene?.scene_index || 1} Sound-Synced Master
+                </h3>
               </div>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">
+                {readyVoiceCount} of {dialogueLines.length} Vocals Synced
+              </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {FOLEY_CATALOG.map((foley) => {
-                const isActive = activeFoleyId === foley.id;
-                const isPlayingThis = isFoleyTesting && isActive;
+            {activeScene && (
+              <SceneMediaPlayer
+                scene={activeScene}
+                characters={characters}
+                seriesTitle={activeSeries?.title}
+                artStyleSeed={activeSeries?.art_style_seed}
+                autoPlay={false}
+                showSubtitleBurnIn={true}
+              />
+            )}
 
-                return (
-                  <div
-                    key={foley.id}
-                    className={`p-3.5 rounded-2xl border transition-all flex flex-col justify-between gap-2.5 ${
-                      isActive
-                        ? 'bg-emerald-950/30 border-emerald-500/50 text-slate-100'
-                        : 'bg-slate-950/50 border-slate-800 text-slate-400 hover:border-slate-700'
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-bold text-slate-200 font-mono">
-                          {foley.name}
-                        </span>
-                        {isActive && (
-                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                            Active
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-slate-400 mt-1 leading-snug">
-                        {foley.desc}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-2 pt-2 border-t border-slate-800/60">
-                      <button
-                        type="button"
-                        onClick={() => setActiveFoleyId(foley.id)}
-                        className={`flex-1 py-1 rounded-lg text-[10px] font-mono font-bold transition-all cursor-pointer ${
-                          isActive
-                            ? 'bg-emerald-600 text-white'
-                            : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
-                        }`}
-                      >
-                        {isActive ? 'Selected for Scene' : 'Assign to Scene'}
-                      </button>
-
-                      {foley.url && (
-                        <button
-                          type="button"
-                          onClick={() => handleTestFoley(foley.id)}
-                          className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono shrink-0 cursor-pointer flex items-center gap-1"
-                        >
-                          {isPlayingThis ? <Pause className="h-3 w-3 text-emerald-400" /> : <Play className="h-3 w-3" />}
-                          <span>{isPlayingThis ? 'Stop' : 'Test'}</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+            <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 text-[11px] text-slate-400 font-mono space-y-1">
+              <div className="flex items-center justify-between">
+                <span>Active Foley:</span>
+                <span className="text-slate-200 capitalize">{activeFoleyId}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Dialogue Latency:</span>
+                <span className="text-emerald-400">&lt; 15ms zero-drift</span>
+              </div>
             </div>
           </div>
 
-        </div>
-
-        {/* RIGHT COLUMN: Live Mixer & Master Synced Player (5 cols) */}
-        <div className="lg:col-span-5 space-y-6">
-          
           {/* PHASE 3: LIVE MULTI-TRACK MIXER */}
-          <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 space-y-5">
-            <div className="flex items-center gap-2.5">
-              <div className="h-8 w-8 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400">
-                <Sliders className="h-4 w-4" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider font-mono">
-                  Phase 3: Multi-Track Sound Mixer
-                </h3>
-                <p className="text-[11px] text-slate-400">
-                  Individual channel gains and master output balance
-                </p>
-              </div>
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-lg">
+            <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+              <Sliders className="h-4 w-4 text-purple-400" />
+              <h3 className="font-bold text-slate-100 text-sm">Phase 3: Multi-Track Sound Mixer</h3>
             </div>
 
             <div className="space-y-4 bg-slate-950/70 p-4 rounded-2xl border border-slate-800/80">
-              
               {/* Dialogue Track Level */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs font-mono">
@@ -805,44 +553,282 @@ export const SoundVoiceStudioTab: React.FC<SoundVoiceStudioTabProps> = ({
                   • AI-generated video music is stripped to maintain 100% Halal compliance.
                 </p>
               </div>
-
             </div>
           </div>
 
-          {/* PHASE 4: SYNCHRONIZED SCENE MEDIA PLAYER */}
-          <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Film className="h-4 w-4 text-amber-400" />
-                <h4 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
-                  Scene {activeScene?.scene_index || 1} Sound-Synced Master
-                </h4>
+        </div>
+
+        {/* RIGHT COLUMN: Neural Dialogue & Foley (5 cols) */}
+        <div className="lg:col-span-5 space-y-6">
+          
+          {/* PHASE 1: FISH AUDIO VOCAL BOOTH & SMART SOUNDSCAPE ADAPTOR */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-lg">
+            
+            {/* AI Smart Adaptation Banner */}
+            <div className="p-4 rounded-xl bg-gradient-to-r from-amber-950/40 via-purple-950/30 to-slate-900 border border-amber-500/30 flex flex-col items-stretch justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-amber-400 animate-pulse" />
+                  <span className="text-[11px] font-bold text-amber-200 font-mono uppercase tracking-wider">
+                    Smart AI Adaptive Audio
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-300 leading-relaxed">
+                  Analyze location ({activeScene?.location_name || 'Anime Scene'}), lighting ({activeScene?.lighting_mood || 'Moody'}), and dialogue to pick matching background Foley & vocal emotions.
+                </p>
+                {acousticProfile && (
+                  <div className="mt-2 flex flex-col gap-1.5 text-[9px] font-mono">
+                    <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 self-start">
+                      Foley: {acousticProfile.foley_name}
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30 self-start">
+                      Acoustics: {acousticProfile.room_reverb}
+                    </span>
+                    <span className="text-slate-400 italic">
+                      "{acousticProfile.spatial_description}"
+                    </span>
+                  </div>
+                )}
               </div>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">
-                {readyVoiceCount} of {dialogueLines.length} Vocals Synced
-              </span>
+
+              <button
+                type="button"
+                onClick={handleAdaptSoundscape}
+                disabled={isAdaptingSoundscape}
+                className="w-full px-3 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs font-mono transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-lg shadow-amber-500/10"
+              >
+                {isAdaptingSoundscape ? (
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin text-slate-950" />
+                ) : (
+                  <Sparkles className="h-3.5 w-3.5 text-slate-950" />
+                )}
+                <span>{isAdaptingSoundscape ? 'Analyzing...' : 'Smart Adapt'}</span>
+              </button>
             </div>
 
-            {activeScene && (
-              <SceneMediaPlayer
-                scene={activeScene}
-                characters={characters}
-                seriesTitle={activeSeries?.title}
-                artStyleSeed={activeSeries?.art_style_seed}
-                autoPlay={false}
-                showSubtitleBurnIn={true}
-              />
-            )}
+            <div className="flex flex-col gap-3 pt-2 border-t border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-8 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400 shrink-0">
+                  <Radio className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider font-mono">
+                    Phase 1: Fish Audio Vocal Booth
+                  </h3>
+                  <p className="text-[10px] text-slate-400">
+                    Line-by-line voice casting and neural speech generation
+                  </p>
+                </div>
+              </div>
 
-            <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 text-[11px] text-slate-400 font-mono space-y-1">
-              <div className="flex items-center justify-between">
-                <span>Active Foley:</span>
-                <span className="text-slate-200 capitalize">{activeFoleyId}</span>
+              {/* Batch Actions */}
+              <div className="grid grid-cols-1 gap-2">
+                <button
+                  type="button"
+                  onClick={handleBatchSynthesizeScene}
+                  disabled={isBatchSynthesizingScene || isBatchSynthesizingAll || dialogueLines.length === 0}
+                  className="w-full py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold font-mono transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-sm"
+                >
+                  {isBatchSynthesizingScene ? (
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-3.5 w-3.5" />
+                  )}
+                  <span>Synthesize Scene Lines</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleBatchSynthesizeAllScenes}
+                  disabled={isBatchSynthesizingScene || isBatchSynthesizingAll}
+                  className="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer border border-slate-700"
+                >
+                  {isBatchSynthesizingAll ? (
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin text-amber-400" />
+                  ) : (
+                    <Layers className="h-3.5 w-3.5 text-amber-400" />
+                  )}
+                  <span>Batch All ({batchProgress}%)</span>
+                </button>
               </div>
-              <div className="flex items-center justify-between">
-                <span>Dialogue Latency:</span>
-                <span className="text-emerald-400">&lt; 15ms zero-drift</span>
+            </div>
+
+            {/* Dialogue Lines List */}
+            {dialogueLines.length === 0 ? (
+              <div className="p-8 text-center border border-dashed border-slate-800 rounded-2xl text-slate-500 text-xs font-mono space-y-2">
+                <p>No dialogue lines assigned for this scene.</p>
+                <p className="text-[11px] text-slate-600">You can add dialogue lines in Step 1 (Screenplay Parser).</p>
               </div>
+            ) : (
+              <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
+                {dialogueLines.map((line, idx) => {
+                  const isSynthesizing = synthesizingLineIdx === idx;
+                  const isPreviewing = activePreviewAudioIndex === idx;
+                  const hasAudio = !!line.audio_url;
+
+                  return (
+                    <div 
+                      key={idx}
+                      className={`p-3 rounded-xl border transition-all ${
+                        hasAudio 
+                          ? 'bg-slate-950/80 border-emerald-500/30' 
+                          : 'bg-slate-950/40 border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="flex flex-col gap-1.5 mb-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="text-xs font-bold text-amber-300 font-mono truncate">
+                              {line.speaker}
+                            </span>
+                            <span className={`h-1.5 w-1.5 rounded-full ${hasAudio ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                            <span className="text-[9px] text-slate-400 font-mono">
+                              #{idx + 1}
+                            </span>
+                          </div>
+                          {hasAudio && (
+                            <span className="text-[9px] text-emerald-400 font-mono">
+                              Ready
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Line Voice & Emotion Selectors */}
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <select
+                            value={line.emotion || 'Neutral'}
+                            onChange={(e) => handleUpdateLineField(idx, 'emotion', e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-[9px] font-mono text-slate-300 focus:outline-none focus:border-amber-500"
+                          >
+                            {EMOTION_PRESETS.map(em => (
+                              <option key={em} value={em}>{em}</option>
+                            ))}
+                          </select>
+
+                          <select
+                            value={line.fish_voice_token || 'FISH_VOICE_JP_MALE_TACTICAL_BARITONE_01'}
+                            onChange={(e) => handleUpdateLineField(idx, 'fish_voice_token', e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-[9px] font-mono text-slate-300 focus:outline-none focus:border-amber-500 truncate"
+                          >
+                            {VOICE_PRESETS.map(vp => (
+                              <option key={vp.id} value={vp.id}>{vp.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Dialogue Text Content */}
+                      <p className="text-[11px] text-slate-200 leading-relaxed font-sans bg-slate-900/40 p-2 rounded-lg border border-slate-800/60 mb-2">
+                        "{line.line}"
+                      </p>
+
+                      {/* Audio Controls & Synthesis Button */}
+                      <div className="flex flex-col gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handlePlayLineAudio(line, idx)}
+                          className={`w-full py-1 rounded-lg text-[10px] font-mono flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                            isPreviewing
+                              ? 'bg-emerald-500 text-slate-950 font-bold'
+                              : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+                          }`}
+                        >
+                          {isPreviewing ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+                          <span>{isPreviewing ? 'Playing Take' : hasAudio ? 'Audition' : 'Test Speech'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleSynthesizeSingleLine(idx)}
+                          disabled={isSynthesizing}
+                          className="w-full py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-[10px] font-mono font-bold transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                        >
+                          {isSynthesizing ? (
+                            <RefreshCw className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Mic className="h-3 w-3" />
+                          )}
+                          <span>{hasAudio ? 'Re-Take' : 'Synthesize Voice'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* PHASE 2: ACOUSTIC FOLEY & SFX ARRANGEMENT */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-lg">
+            <div className="flex items-center gap-2">
+              <div className="h-7 w-7 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                <Volume2 className="h-4 w-4" />
+              </div>
+              <div>
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
+                  Phase 2: Acoustic Foley SFX
+                </h3>
+                <p className="text-[10px] text-slate-400">
+                  Atmospheric environmental soundscapes (100% Halal)
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3">
+              {FOLEY_CATALOG.map((foley) => {
+                const isActive = activeFoleyId === foley.id;
+                const isPlayingThis = isFoleyTesting && isActive;
+
+                return (
+                  <div
+                    key={foley.id}
+                    className={`p-3 rounded-xl border transition-all flex flex-col gap-2 ${
+                      isActive
+                        ? 'bg-emerald-950/30 border-emerald-500/50 text-slate-100'
+                        : 'bg-slate-950/50 border-slate-800 text-slate-400 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-slate-200 font-mono">
+                        {foley.name}
+                      </span>
+                      {isActive && (
+                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          Active
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-slate-400 leading-snug">
+                      {foley.desc}
+                    </p>
+
+                    <div className="flex items-center gap-2 pt-2 border-t border-slate-800/60">
+                      <button
+                        type="button"
+                        onClick={() => setActiveFoleyId(foley.id)}
+                        className={`flex-1 py-1 rounded-lg text-[10px] font-mono font-bold transition-all cursor-pointer ${
+                          isActive
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                        }`}
+                      >
+                        {isActive ? 'Selected' : 'Assign'}
+                      </button>
+
+                      {foley.url && (
+                        <button
+                          type="button"
+                          onClick={() => handleTestFoley(foley.id)}
+                          className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono shrink-0 cursor-pointer flex items-center gap-1"
+                        >
+                          {isPlayingThis ? <Pause className="h-3 w-3 text-emerald-400" /> : <Play className="h-3 w-3" />}
+                          <span>{isPlayingThis ? 'Stop' : 'Test'}</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 

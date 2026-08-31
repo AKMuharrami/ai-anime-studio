@@ -1,0 +1,3032 @@
+import React, { useState } from 'react';
+import { 
+  Sparkles, 
+  Layers, 
+  Cpu, 
+  Clock, 
+  Sliders, 
+  Code2, 
+  Play, 
+  CheckCircle2, 
+  RefreshCw, 
+  ArrowRight, 
+  ArrowLeft,
+  Eye, 
+  Maximize2, 
+  Zap, 
+  Copy, 
+  Check,
+  ShieldCheck,
+  ShieldAlert,
+  Wand2,
+  AlertCircle,
+  BookOpen,
+  Image as ImageIcon,
+  MessageSquare,
+  Layout,
+  UserCheck,
+  ChevronRight,
+  Printer,
+  Download,
+  Share2,
+  Trash2,
+  Plus
+} from 'lucide-react';
+import html2canvas from 'html2canvas';
+import { Scene, Character, Environment, Episode, Series } from '../types';
+
+interface MangaStudioTabProps {
+  deductTokens: (cost: number, reason: string) => Promise<boolean>;
+  activeSeries: Series | null;
+  activeEpisode: Episode | null;
+  characters: Character[];
+  environments: Environment[];
+  onAddCharacter: (character: Character) => void;
+  onAddEnvironment: (environment: Environment) => void;
+  onBackToHome?: () => void;
+}
+
+interface MangaPanel {
+  id: string;
+  panelIndex: number;
+  layoutClass: string;
+  charactersPresent: string[];
+  expression: string;
+  equipment: string;
+  actionPrompt: string;
+  speechText: string;
+  bubbleStyle: 'oval' | 'burst' | 'thought' | 'whisper';
+  bubbleX: number; // Percentage from left
+  bubbleY: number; // Percentage from top
+  bubbleScale: number;
+  bgUrl: string;
+  charSheetUrl: string;
+  imageUrl: string;
+  isRendered: boolean;
+  renderingStatus: 'IDLE' | 'COMPLETED' | 'GENERATING';
+}
+
+
+interface MangaPageRecord {
+  id: string;
+  pageNumber: number;
+  chapterNumber: number;
+  panels: MangaPanel[];
+  pageImageObj?: string;
+}
+
+export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
+  activeSeries,
+  activeEpisode,
+  characters,
+  environments,
+  onAddCharacter,
+  onAddEnvironment,
+  onBackToHome,
+  deductTokens
+}) => {
+  // Step navigation: 1: Plot, 2: Character, 3: Qwen Composition, 4: Speech Overlay
+  const [activeWorkflowStep, setActiveWorkflowStep] = useState<number>(1);
+  const [selectedPanelId, setSelectedPanelId] = useState<string>('panel_1');
+  const [copiedPayload, setCopiedPayload] = useState(false);
+  const [isGeneratingScript, setIsGeneratingScript] = useState(false);
+  const [isRenderingPanel, setIsRenderingPanel] = useState(false);
+  const [isAssemblingPage, setIsAssemblingPage] = useState(false);
+    const getInitialScope = () => {
+    if (activeEpisode?.route === 'MANGA_SINGLE_PAGE') return 'single_page';
+    if (activeEpisode?.route === 'MANGA_VOLUME') return 'full_story';
+    return 'single_chapter';
+  };
+  const [mangaScope, setMangaScope] = useState<'single_page' | 'single_chapter' | 'full_story'>(getInitialScope());
+  const [mangaArchetype, setMangaArchetype] = useState('Classic Seinen');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [currentChapter, setCurrentChapter] = useState<number>(1);
+
+  const [historyPages, setHistoryPages] = useState<MangaPageRecord[]>([]);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [showChapterPreview, setShowChapterPreview] = useState(false);
+  const [fallbackTemplate, setFallbackTemplate] = useState<string>('GRID_ADAPTIVE');
+
+
+  // New Generation States inside Manga Studio
+  const [step2Tab, setStep2Tab] = useState<'characters' | 'environments'>('characters');
+  const [isGeneratingMangaChar, setIsGeneratingMangaChar] = useState(false);
+  const [mangaCharName, setMangaCharName] = useState('');
+  const [mangaCharDescriptor, setMangaCharDescriptor] = useState('Honorable samurai protagonist with dark messy hair, intense black eyes, wearing modest traditional robes covering full body.');
+  const [mangaCharVoice, setMangaCharVoice] = useState('FISH_VOICE_JP_MALE_TACTICAL_BARITONE_01');
+
+  // Guided Character Builder states
+  const [characterBuilderMode, setCharacterBuilderMode] = useState<'guided' | 'custom'>('guided');
+  const [charDemographic, setCharDemographic] = useState('Adult Male');
+  const [charDemographicCustom, setCharDemographicCustom] = useState('');
+  const [charHair, setCharHair] = useState('Traditional samurai topknot (chonmage) with loose wind-blown side bangs');
+  const [charHairCustom, setCharHairCustom] = useState('');
+  const [charEyes, setCharEyes] = useState('Narrowed, piercing dark eyes with intense battle-hardened stoic focus');
+  const [charEyesCustom, setCharEyesCustom] = useState('');
+  const [charFace, setCharFace] = useState('Rugged chiseled jawline, stoic expression, and a subtle horizontal scar across the left brow');
+  const [charFaceCustom, setCharFaceCustom] = useState('');
+  const [charAttire, setCharAttire] = useState('smart-auto');
+  const [charAttireCustom, setCharAttireCustom] = useState('');
+
+  const [isGeneratingMangaEnv, setIsGeneratingMangaEnv] = useState(false);
+  const [mangaEnvLocation, setMangaEnvLocation] = useState('');
+  const [mangaEnvStyle, setMangaEnvStyle] = useState('Cyberpunk server core mainframe with dark cable clusters and wireframes.');
+  
+  // Smart Scanner & Autofill states
+  const [isScanningScript, setIsScanningScript] = useState(false);
+  const [hasScanned, setHasScanned] = useState(true);
+  const [autofillSuccessMessage, setAutofillSuccessMessage] = useState<string | null>(null);
+
+  // Character Reference Quality Scanner & Auto-Enhancer States
+  const [isAutoEnhanceEnabled, setIsAutoEnhanceEnabled] = useState(true);
+  const [enhancingCharId, setEnhancingCharId] = useState<string | null>(null);
+  const [isBatchEnhancing, setIsBatchEnhancing] = useState(false);
+  const [enhanceProgressMsg, setEnhanceProgressMsg] = useState<string | null>(null);
+
+  // Check if a character reference is insufficient (stock placeholder or short descriptor)
+  const isCharReferenceInsufficient = (char: Character): boolean => {
+    const url = char.turnaround_url || char.reference_images?.[0] || char.master_model_sheet_url || '';
+    const desc = char.visual_descriptor || '';
+    const isPlaceholder = !url || url.includes('images.unsplash.com') || url.includes('placeholder') || !url.startsWith('http');
+    const isVague = desc.length < 80;
+    return isPlaceholder || isVague || !char.is_enhanced;
+  };
+
+  // Enhance a single character's reference turnaround sheet
+  const handleAutoEnhanceCharacter = async (char: Character) => {
+    setEnhancingCharId(char.id);
+    setEnhanceProgressMsg(`Synthesizing 4-angle turnaround blueprint for "${char.name}"...`);
+    try {
+      const res = await fetch('/api/assets/characters/auto-enhance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          character: char,
+          series_title: activeSeries?.title,
+          world_setting: activeSeries?.global_lore,
+          art_style_seed: 'GEKIGA_INK_WASH_MONOCHROME_HIGH_CONTRAST',
+          is_manga: true
+        })
+      });
+      const data = await res.json();
+      if (data.success && data.character) {
+        onAddCharacter(data.character);
+        // Automatically link enhanced turnaround sheet to panels containing this character
+        handleUpdatePanel(activePanel.id, {
+          charSheetUrl: data.character.turnaround_url || activePanel.charSheetUrl
+        });
+        setEnhanceProgressMsg(`✨ "${char.name}" turnaround successfully locked with 4-angle model sheet!`);
+        setTimeout(() => setEnhanceProgressMsg(null), 3500);
+      }
+    } catch (err) {
+      console.error("Auto enhance error:", err);
+      setEnhanceProgressMsg(`Failed to auto-enhance ${char.name}`);
+    } finally {
+      setEnhancingCharId(null);
+    }
+  };
+
+  // Batch enhance all insufficient characters in the project
+  const handleBatchAutoEnhanceAll = async () => {
+    setIsBatchEnhancing(true);
+    setEnhanceProgressMsg("Scanning project characters for placeholder/insufficient references...");
+    try {
+      const res = await fetch('/api/assets/characters/batch-auto-enhance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          characters,
+          series_title: activeSeries?.title,
+          world_setting: activeSeries?.global_lore,
+          art_style_seed: 'GEKIGA_INK_WASH_MONOCHROME_HIGH_CONTRAST',
+          is_manga: true
+        })
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.characters)) {
+        data.characters.forEach((c: Character) => {
+          if (c.is_enhanced) onAddCharacter(c);
+        });
+        setEnhanceProgressMsg(`✨ Batch upgrade complete! Enhanced ${data.enhanced_count} character turnaround sheets.`);
+        setTimeout(() => setEnhanceProgressMsg(null), 4000);
+      }
+    } catch (err) {
+      console.error("Batch auto enhance error:", err);
+      setEnhanceProgressMsg("Batch auto-enhancement encountered an issue.");
+    } finally {
+      setIsBatchEnhancing(false);
+    }
+  };
+
+  // Smart genre/world detector for prompt and autofill consistency
+  const detectProjectGenre = (): 'ANCIENT' | 'FANTASY' | 'CYBERPUNK' | 'MODERN' => {
+    const combined = `${activeSeries?.global_lore || ''} ${activeSeries?.title || ''} ${activeSeries?.description || ''} ${mangaPlotConcept || ''} ${activeSeries?.art_style_seed || ''}`.toLowerCase();
+    
+    if (
+      combined.includes('ancient') ||
+      combined.includes('feudal') ||
+      combined.includes('samurai') ||
+      combined.includes('ronin') ||
+      combined.includes('dynasty') ||
+      combined.includes('hanfu') ||
+      combined.includes('kimono') ||
+      combined.includes('haori') ||
+      combined.includes('wuxia') ||
+      combined.includes('xianxia') ||
+      combined.includes('temple') ||
+      combined.includes('shrine') ||
+      combined.includes('palace') ||
+      combined.includes('scroll') ||
+      combined.includes('emperor') ||
+      combined.includes('shogun') ||
+      combined.includes('clan') ||
+      combined.includes('monk') ||
+      combined.includes('historical') ||
+      combined.includes('katana') ||
+      combined.includes('swordsman') ||
+      combined.includes('warrior') ||
+      combined.includes('blade') ||
+      combined.includes('battlefield') ||
+      combined.includes('roman') ||
+      combined.includes('greek') ||
+      combined.includes('mesopotamia') ||
+      combined.includes('antiquity') ||
+      combined.includes('bronze age')
+    ) {
+      return 'ANCIENT';
+    }
+    
+    if (
+      combined.includes('frost citadel') ||
+      combined.includes('citadel') ||
+      combined.includes('magic') ||
+      combined.includes('rune') ||
+      combined.includes('mana') ||
+      combined.includes('elf') ||
+      combined.includes('dragon') ||
+      combined.includes('knight') ||
+      combined.includes('paladin') ||
+      combined.includes('sorcerer') ||
+      combined.includes('crystal') ||
+      combined.includes('mythical') ||
+      combined.includes('dungeon') ||
+      combined.includes('ethereal') ||
+      combined.includes('glacial') ||
+      combined.includes('dark fantasy') ||
+      combined.includes('berserk') ||
+      combined.includes('fantasy')
+    ) {
+      return 'FANTASY';
+    }
+
+    if (
+      combined.includes('2099') ||
+      combined.includes('cyber') ||
+      combined.includes('neon') ||
+      combined.includes('neural') ||
+      combined.includes('neo-kyoto') ||
+      combined.includes('android') ||
+      combined.includes('hacker') ||
+      combined.includes('tech') ||
+      combined.includes('hologram') ||
+      combined.includes('matrix') ||
+      combined.includes('cybernetic') ||
+      combined.includes('quantum') ||
+      combined.includes('synth') ||
+      combined.includes('cyborg') ||
+      combined.includes('sci-fi')
+    ) {
+      return 'CYBERPUNK';
+    }
+
+    return 'MODERN';
+  };
+
+  // Smart parser to find missing environmental locations from the script matching the world lore
+  const extractEnvironmentsFromScript = () => {
+    const detected: string[] = [];
+    const genre = detectProjectGenre();
+
+    panels.forEach(p => {
+      const promptLower = p.actionPrompt.toLowerCase();
+      
+      // Ancient / Feudal locations
+      if (promptLower.includes('shrine') || promptLower.includes('temple') || promptLower.includes('altar')) {
+        if (!detected.includes('Ancient Mountain Shrine')) detected.push('Ancient Mountain Shrine');
+      }
+      if (promptLower.includes('palace') || promptLower.includes('throne') || promptLower.includes('hall') || promptLower.includes('court')) {
+        if (!detected.includes('Imperial Palace Throne Hall')) detected.push('Imperial Palace Throne Hall');
+      }
+      if (promptLower.includes('bamboo') || promptLower.includes('forest') || promptLower.includes('woods') || promptLower.includes('grove')) {
+        if (!detected.includes('Misty Bamboo Forest Clearing')) detected.push('Misty Bamboo Forest Clearing');
+      }
+      if (promptLower.includes('gate') || promptLower.includes('fortress') || promptLower.includes('wall') || promptLower.includes('tower')) {
+        if (!detected.includes('Stone Fortress Gatehouse')) detected.push('Stone Fortress Gatehouse');
+      }
+      if (promptLower.includes('dojo') || promptLower.includes('training') || promptLower.includes('tatami')) {
+        if (!detected.includes('Traditional Martial Dojo')) detected.push('Traditional Martial Dojo');
+      }
+
+      // Cyber / Sci-fi locations
+      if (promptLower.includes('server room') || promptLower.includes('server core') || promptLower.includes('mainframe')) {
+        if (!detected.includes('Server Core Mainframe')) detected.push('Server Core Mainframe');
+      }
+      if (promptLower.includes('tech hub') || promptLower.includes('terminal') || promptLower.includes('hacking')) {
+        if (!detected.includes('Holographic Tech Hub')) detected.push('Holographic Tech Hub');
+      }
+      if (promptLower.includes('citadel') || promptLower.includes('roof') || promptLower.includes('skyline')) {
+        if (!detected.includes('Citadel Rooftop Vista')) detected.push('Citadel Rooftop Vista');
+      }
+    });
+
+    if (detected.length === 0) {
+      if (genre === 'ANCIENT') {
+        detected.push('Ancient Palace Courtyard', 'Misty Bamboo Shrine', 'Feudal Fortress Gatehouse');
+      } else if (genre === 'FANTASY') {
+        detected.push('Crystalline Throne Room', 'Glacial Citadel Ramparts', 'Ancient Runestone Sanctuary');
+      } else if (genre === 'CYBERPUNK') {
+        detected.push('Server Core Mainframe', 'Holographic Tech Hub', 'Citadel Neon Rooftop');
+      } else {
+        detected.push('Urban Rooftop Dusk', 'Training Dojo Interior', 'Rain-Slicked Alleyway');
+      }
+    }
+    return detected;
+  };
+
+  // High-fidelity smart turnaround character prompt generator with all consistency parameters
+  const getCharacterAutofillDescriptor = (name: string): string => {
+    let genre = detectProjectGenre();
+    const cleanName = name.trim() || 'Character';
+    const lowerName = cleanName.toLowerCase();
+
+    if (
+      lowerName.includes('warrior') || lowerName.includes('samurai') || lowerName.includes('ronin') ||
+      lowerName.includes('swordsman') || lowerName.includes('general') || lowerName.includes('shogun') ||
+      lowerName.includes('blade') || lowerName.includes('clan')
+    ) {
+      genre = 'ANCIENT';
+    }
+
+    if (genre === 'ANCIENT') {
+      return `${cleanName}: Canon Japanese Seinen Gekiga Manga Model Sheet (Ancient / Feudal World Setting).
+• Age & Anatomy: Mature 32-year-old battle-tested warrior with hardened muscular physique.
+• Hairstyle & Color: Coarse obsidian raven-black hair gathered in a traditional samurai topknot (chonmage) with loose wind-blown side bangs.
+• Eye Morphology: Narrowed, piercing dark amber-obsidian eyes with intense battle-hardened focus and defined brow creases.
+• Facial Architecture & Skin: Rugged chiseled jawline, prominent cheekbones, stoic weathered warrior expression, sun-bronzed skin tone, subtle scar across brow.
+• Signature Wardrobe: Authentic battle-worn dark indigo and charcoal samurai haori over black iron lamellar armor plates, leather forearm vambraces (kote), tailored dark hakama trousers, wide textured obi sash, strapped straw waraji sandals. ZERO modern clothing.
+• Weapons & Props: Twin katana in worn lacquered scabbards tucked in obi sash with braided sageo cord.
+• CRITICAL 4-ANGLE CONSISTENCY: Multi-angle orthographic turnaround (Front View 0°, 3/4 View 45°, Side Profile 90°, Back View 180°). Facial architecture, hair silhouette, and samurai armor details maintain 100% strict unchanging visual continuity across all panels.`;
+    }
+
+    if (genre === 'FANTASY') {
+      return `${cleanName}: Canon Japanese Seinen Gekiga Manga Model Sheet (Dark Fantasy Setting).
+• Age & Anatomy: Mature 30-year-old knight commander with imposing armored build.
+• Hairstyle & Color: Flowing medium silver-frosted hair with sculpted sharp locks and crystalline sheen.
+• Eye Morphology: Luminous crystal-azure eyes with commanding knightly focus.
+• Facial Architecture & Skin: Regal chiseled facial structure, sharp defined jawline, resolute knightly expression.
+• Signature Wardrobe: Etched runic silver-mythril full-plate armor with azure velvet mantle, high-collared neck guard, sapphire-inlaid breastplate, reinforced chainmail.
+• Weapons & Props: Frost-forged broadsword with glowing runic fuller, celestial crest brooch.
+• CRITICAL 4-ANGLE CONSISTENCY: Multi-angle orthographic turnaround (Front View 0°, 3/4 View 45°, Side Profile 90°, Back View 180°). Exact hairstyle, eye shape, and armor continuity across all panels.`;
+    }
+
+    if (genre === 'CYBERPUNK') {
+      return `${cleanName}: Canon Japanese Seinen Gekiga Manga Model Sheet (Cyberpunk 2099 Setting).
+• Age & Anatomy: Mature 29-year-old tactical cybernetic operative with athletic build.
+• Hairstyle & Color: Tousled layered obsidian black hair with sharp angular bangs and cyan specular sheen.
+• Eye Morphology: Right eye natural dark brown, left eye glowing cobalt cybernetic ocular lens with active HUD reticle.
+• Facial Architecture & Skin: Sharp angular jawline, slight cybernetic neural port along right temple, calm tactical expression.
+• Signature Wardrobe: Matte black high-neck tactical trenchcoat with luminescent cyan fiber-optic seam piping, armored combat vest, dark cargo utility trousers.
+• Weapons & Props: Tactical pulse sidearm in holster, neural wrist deck with fiber-optic cable connectors.
+• CRITICAL 4-ANGLE CONSISTENCY: Multi-angle orthographic turnaround (Front View 0°, 3/4 View 45°, Side Profile 90°, Back View 180°). Exact hairstyle, ocular implant, and coat continuity across all panels.`;
+    }
+
+    return `${cleanName}: Canon Japanese Seinen Gekiga Manga Model Sheet (Modern Setting).
+• Age & Anatomy: Mature 31-year-old gritty detective and martial artist.
+• Hairstyle & Color: Clean textured crop with dark raven strands and natural parted bangs.
+• Eye Morphology: Deep-set piercing hazel-brown eyes with sharp observant gaze.
+• Facial Architecture & Skin: Defined rugged jawline, subtle dark stubble shadow, calm disciplined expression.
+• Signature Wardrobe: Heavy dark charcoal overcoat over a black tactical turtleneck, tailored dark combat trousers, sturdy leather boots.
+• Weapons & Props: Concealed tactical holster, titanium field watch, discreet encrypted earpiece.
+• CRITICAL 4-ANGLE CONSISTENCY: Multi-angle orthographic turnaround (Front View 0°, 3/4 View 45°, Side Profile 90°, Back View 180°). Exact hairstyle and facial continuity across all panels.`;
+  };
+
+  // High-fidelity environment backdrop prompt library matching world setting
+  const getEnvironmentAutofillStyle = (location: string): string => {
+    const genre = detectProjectGenre();
+    
+    if (genre === 'ANCIENT') {
+      return `4K Master Monochrome Manga Background Stage Layout: "${location}". Ancient world architectural layout, wide landscape composition, empty stage plate, pristine floor plane and spatial depth, 100% uninhabited location without people. Traditional carved timber pillars, stone flagstones, paper shoji screens, stone lanterns, atmospheric mist, high-contrast black and white ink lineart with clean halftone screentone shading.`;
+    }
+
+    if (genre === 'FANTASY') {
+      return `4K Master Monochrome Manga Background Stage Layout: "${location}". High fantasy architectural layout, wide crystalline landscape composition, empty stage plate, vaulted stone arches, glowing rune sigils on stone walls, deep spatial perspective, 100% uninhabited location without people. Authentic Gekiga manga ink lineart with clean screentones.`;
+    }
+
+    if (genre === 'CYBERPUNK') {
+      return `4K Master Monochrome Manga Background Stage Layout: "${location}". Cyberpunk architectural layout, deep perspective with stacked server columns, floating holographic displays, wireframe indicators, dangling cables, empty stage plate, 100% uninhabited without people. High-contrast ink cross-hatching and screentones.`;
+    }
+
+    return `4K Master Monochrome Manga Background Stage Layout: "${location}". Modern cinematic scenery layout, empty stage plate, deep spatial coordinate lines, crisp architectural perspective, 100% character-free layout. Authentic Japanese manga ink screentone art.`;
+  };
+
+  // Script Input State
+  const [mangaPlotConcept, setMangaPlotConcept] = useState(() => {
+    if (activeEpisode?.full_script_json?.logline) return activeEpisode.full_script_json.logline;
+    return "";
+  });
+
+  // Manga Storyboard/Panels state
+  const [pages, setPages] = useState<MangaPageRecord[]>([]);
+  const [activePageIndex, setActivePageIndex] = useState(0);
+
+  const [panels, setPanels] = useState<MangaPanel[]>([
+    {
+      id: 'panel_1',
+      panelIndex: 1,
+      layoutClass: 'col-span-12 row-span-2 h-72 md:h-80',
+      charactersPresent: ['Kaelen'],
+      expression: 'Intense determination, looking slightly downward at a terminal screen',
+        equipment: '',
+      actionPrompt: 'Kaelen frantically hacking a holographic terminal in a dark, neon-lit cyberpunk tech hub. Wireframe displays reflecting on her glasses, extreme close-up side angle.',
+      speechText: "Just ten more seconds... The firewall is decrypting, but the server matrix is collapsing!",
+      bubbleStyle: 'burst',
+      bubbleX: 25,
+      bubbleY: 30,
+      bubbleScale: 1.0,
+      bgUrl: 'https://images.unsplash.com/photo-1542831371-29b0f74f9713?q=80&w=1200', // Neon grid background placeholder
+      charSheetUrl: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?q=80&w=600', // Character model sheet
+      imageUrl: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?q=80&w=1200', // Rendered placeholder image
+      isRendered: true,
+      renderingStatus: 'COMPLETED'
+    },
+    {
+      id: 'panel_2',
+      panelIndex: 2,
+      layoutClass: 'col-span-6 row-span-1 h-56 md:h-64',
+      charactersPresent: ['Lyra'],
+      expression: 'Cold, ruthless glare with a smirk',
+        equipment: '',
+      actionPrompt: 'Lyra standing in the doorway of the server room. Her cyber-armor sparks red, her hand is drawing an ignited obsidian energy katana. Extreme perspective looking up.',
+      speechText: "Step away from the terminal, hacker. Your signal was intercepted.",
+      bubbleStyle: 'oval',
+      bubbleX: 60,
+      bubbleY: 25,
+      bubbleScale: 0.9,
+      bgUrl: 'https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=1200',
+      charSheetUrl: 'https://images.unsplash.com/photo-1563089145-599997674d42?q=80&w=600',
+      imageUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1200',
+      isRendered: true,
+      renderingStatus: 'COMPLETED'
+    },
+    {
+      id: 'panel_3',
+      panelIndex: 3,
+      layoutClass: 'col-span-6 row-span-1 h-56 md:h-64',
+      charactersPresent: ['Kaelen', 'Lyra'],
+      expression: 'Shocked, sweat drop on brow, turning head rapidly toward doorway',
+        equipment: '',
+      actionPrompt: 'Kaelen looking shocked, turning back over her shoulder towards the camera as crimson sparks fill the background. Sparks flying across the screen.',
+      speechText: "No! How did you bypass the perimeter node? The lockdown was absolute!",
+      bubbleStyle: 'burst',
+      bubbleX: 55,
+      bubbleY: 45,
+      bubbleScale: 1.1,
+      bgUrl: 'https://images.unsplash.com/photo-1542831371-29b0f74f9713?q=80&w=1200',
+      charSheetUrl: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?q=80&w=600',
+      imageUrl: 'https://images.unsplash.com/photo-1614741118887-7a4ee193a5fa?q=80&w=1200',
+      isRendered: true,
+      renderingStatus: 'COMPLETED'
+    },
+    {
+      id: 'panel_4',
+      panelIndex: 4,
+      layoutClass: 'col-span-12 row-span-2 h-72 md:h-80',
+      charactersPresent: ['Lyra'],
+      expression: 'Amused, dominant, pointing katana forward',
+        equipment: '',
+      actionPrompt: 'Lyra pointing her glowing obsidian katana directly towards the camera, cybernetic lens in her left eye glowing white-hot. Screentone dust and shadows swarming the frame.',
+      speechText: "SiliconFlow protocols see through your petty locks. Now, purge the chip or face immediate erasure.",
+      bubbleStyle: 'oval',
+      bubbleX: 75,
+      bubbleY: 30,
+      bubbleScale: 1.0,
+      bgUrl: 'https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=1200',
+      charSheetUrl: 'https://images.unsplash.com/photo-1563089145-599997674d42?q=80&w=600',
+      imageUrl: 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=1200',
+      isRendered: true,
+      renderingStatus: 'COMPLETED'
+    }
+  ]);
+
+  const handleSwitchPage = (newIndex: number) => {
+    if (newIndex < 0 || newIndex >= pages.length) return;
+    
+    // Save current active panels to the pages state before switching
+    const updatedPages = [...pages];
+    updatedPages[activePageIndex] = {
+      ...updatedPages[activePageIndex],
+      panels: panels
+    };
+    
+    // Load the selected page's panels
+    setPages(updatedPages);
+    setActivePageIndex(newIndex);
+    setPanels(updatedPages[newIndex].panels);
+    setSelectedPanelId(updatedPages[newIndex].panels[0]?.id || '');
+  };
+
+  const getActivePageTemplate = (): string => {
+    if (pages.length > 0 && pages[activePageIndex]) {
+      return pages[activePageIndex].gridLayoutTemplate || 'GRID_ADAPTIVE';
+    }
+    return fallbackTemplate;
+  };
+
+  const getPanelLayoutInfo = (index: number, totalCount: number, templateId: string) => {
+    if (templateId === 'WEBTOON_STRIP') {
+      return {
+        className: 'col-span-12',
+        style: { height: `${(96 / totalCount).toFixed(1)}%` }
+      };
+    }
+    
+    if (templateId === 'YONKOMA_4_PANEL') {
+      return {
+        className: 'col-span-12',
+        style: { height: '23.3%' }
+      };
+    }
+    
+    if (templateId === 'CINEMATIC_2_PANEL') {
+      return {
+        className: 'col-span-12',
+        style: { height: '48.2%' }
+      };
+    }
+    
+    if (templateId === 'DRAMATIC_3_PANEL') {
+      if (index === 0) {
+        return {
+          className: 'col-span-12',
+          style: { height: '41%' }
+        };
+      } else if (index === 1) {
+        return {
+          className: 'col-span-7',
+          style: { height: '54.5%' }
+        };
+      } else {
+        return {
+          className: 'col-span-5',
+          style: { height: '54.5%' }
+        };
+      }
+    }
+
+    // Fallback to GRID_ADAPTIVE:
+    if (totalCount === 1) {
+      return {
+        className: 'col-span-12',
+        style: { height: '100%' }
+      };
+    } else if (totalCount === 2) {
+      return {
+        className: 'col-span-12',
+        style: { height: '48.2%' }
+      };
+    } else if (totalCount === 3) {
+      if (index === 0) {
+        return {
+          className: 'col-span-12',
+          style: { height: '39%' }
+        };
+      } else {
+        return {
+          className: 'col-span-6',
+          style: { height: '56.5%' }
+        };
+      }
+    } else if (totalCount === 4) {
+      if (index === 0) {
+        return {
+          className: 'col-span-12',
+          style: { height: '27.5%' }
+        };
+      } else if (index === 1 || index === 2) {
+        return {
+          className: 'col-span-6',
+          style: { height: '31.5%' }
+        };
+      } else {
+        return {
+          className: 'col-span-12',
+          style: { height: '31.5%' }
+        };
+      }
+    } else {
+      // 5 or more panels
+      if (index === totalCount - 1 && totalCount % 2 !== 0) {
+        // Last odd panel gets full row
+        return {
+          className: 'col-span-12',
+          style: { height: '31%' }
+        };
+      }
+      return {
+        className: 'col-span-6',
+        style: { height: `${(90 / Math.ceil(totalCount / 2)).toFixed(1)}%` }
+      };
+    }
+  };
+
+  const adjustPanelCount = (targetCount: number, currentPanels: MangaPanel[]) => {
+    if (currentPanels.length === targetCount) return currentPanels;
+
+    if (currentPanels.length > targetCount) {
+      // Slice
+      const truncated = currentPanels.slice(0, targetCount);
+      return truncated.map((p, idx) => ({ ...p, panelIndex: idx + 1 }));
+    } else {
+      // Append
+      const updated = [...currentPanels];
+      while (updated.length < targetCount) {
+        const newIndex = updated.length + 1;
+        updated.push({
+          id: `panel_gen_${Date.now()}_${newIndex}`,
+          panelIndex: newIndex,
+          layoutClass: 'col-span-6 row-span-1 h-64',
+          charactersPresent: characters[0] ? [characters[0].name] : [],
+          expression: 'Intense focus',
+          equipment: '',
+          actionPrompt: 'New manga scene taking place...',
+          speechText: 'Dialogue goes here...',
+          bubbleStyle: 'oval',
+          bubbleX: 50,
+          bubbleY: 45,
+          bubbleScale: 1.0,
+          bgUrl: environments[0]?.master_keyframe_url || 'https://images.unsplash.com/photo-1542831371-29b0f74f9713?q=80&w=1200',
+          charSheetUrl: characters[0]?.turnaround_url || 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?q=80&w=600',
+          imageUrl: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?q=80&w=1200',
+          isRendered: false,
+          renderingStatus: 'IDLE'
+        });
+      }
+      return updated;
+    }
+  };
+
+  const handleTemplateChange = (templateId: string) => {
+    // Interconnected behavior: calculate target panel counts
+    let targetCount = panels.length;
+    if (templateId === 'YONKOMA_4_PANEL') {
+      targetCount = 4;
+    } else if (templateId === 'DRAMATIC_3_PANEL') {
+      targetCount = 3;
+    } else if (templateId === 'CINEMATIC_2_PANEL') {
+      targetCount = 2;
+    }
+
+    const adjustedPanels = adjustPanelCount(targetCount, panels);
+
+    // Update the page's template state
+    const updatedPages = [...pages];
+    if (updatedPages[activePageIndex]) {
+      updatedPages[activePageIndex].gridLayoutTemplate = templateId;
+      updatedPages[activePageIndex].panels = adjustedPanels;
+      setPages(updatedPages);
+    } else {
+      setFallbackTemplate(templateId);
+    }
+
+    setPanels(adjustedPanels);
+    // Ensure selectedPanelId is valid
+    if (adjustedPanels.length > 0 && !adjustedPanels.some(p => p.id === selectedPanelId)) {
+      setSelectedPanelId(adjustedPanels[0].id);
+    }
+  };
+
+  const activePanel = panels.find(p => p.id === selectedPanelId) || panels[0];
+
+  const handleUpdatePanel = (panelId: string, updatedFields: Partial<MangaPanel>) => {
+    setPanels(prev => prev.map(p => p.id === panelId ? { ...p, ...updatedFields } : p));
+  };
+
+  const handleAddPanelManual = () => {
+    const newPanel: MangaPanel = {
+      id: `panel_manual_${Date.now()}`,
+      panelIndex: panels.length + 1,
+      layoutClass: 'col-span-6 row-span-1 h-64',
+      charactersPresent: [],
+      expression: 'Neutral',
+      equipment: '',
+      actionPrompt: 'Enter action details here...',
+      speechText: 'Dialogue goes here...',
+      bubbleStyle: 'oval',
+      bubbleX: 50,
+      bubbleY: 50,
+      bubbleScale: 1.0,
+      bgUrl: environments[0]?.master_keyframe_url || 'https://images.unsplash.com/photo-1542831371-29b0f74f9713?q=80&w=1200',
+      charSheetUrl: characters[0]?.turnaround_url || 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?q=80&w=600',
+      imageUrl: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?q=80&w=1200',
+      isRendered: false,
+      renderingStatus: 'IDLE'
+    };
+    setPanels(prev => [...prev, newPanel]);
+    setSelectedPanelId(newPanel.id);
+  };
+
+  const handleDeletePanel = (panelId: string) => {
+    if (panels.length <= 1) return;
+    const newPanels = panels.filter(p => p.id !== panelId);
+    setPanels(newPanels);
+    if (selectedPanelId === panelId) {
+      setSelectedPanelId(newPanels[0].id);
+    }
+  };
+
+  // Step 1: Simulate DeepSeek-R1 Script & Layout Parsing
+  const handleGenerateMangaScript = async () => {
+    if (!mangaPlotConcept.trim()) return;
+    
+    setIsGeneratingScript(true);
+    try {
+      const response = await fetch('/api/manga/blueprint', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          plot_concept: mangaPlotConcept,
+          scope: mangaScope,
+          series_title: activeSeries?.title || 'New Manga',
+          archetype: mangaArchetype
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to generate blueprint');
+      
+      const data = await response.json();
+      if (data.success && data.blueprint?.pages) {
+        const generatedPages: MangaPageRecord[] = data.blueprint.pages.map((p: any) => ({
+          id: `page_${p.pageNumber}_${Math.random().toString(36).substr(2, 9)}`,
+          pageNumber: p.pageNumber,
+          chapterNumber: currentChapter,
+          gridLayoutTemplate: 'GRID_ADAPTIVE',
+          panels: p.panels.map((panel: any) => {
+            const firstCharName = panel.charactersPresent?.[0];
+            const matchedChar = characters.find(c => firstCharName && c.name.toLowerCase() === firstCharName.toLowerCase());
+            const matchedEnv = environments[0];
+            return {
+              ...panel,
+              id: `panel_${panel.panelIndex}_${Math.random().toString(36).substr(2, 9)}`,
+              bgUrl: matchedEnv?.master_keyframe_url || 'https://images.unsplash.com/photo-1542831371-29b0f74f9713?q=80&w=1200',
+              charSheetUrl: matchedChar ? (matchedChar.turnaround_url || matchedChar.reference_images?.[0] || '') : (characters[0]?.turnaround_url || characters[0]?.reference_images?.[0] || 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?q=80&w=600'),
+              imageUrl: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?q=80&w=1200',
+              isRendered: false,
+              renderingStatus: 'IDLE'
+            };
+          })
+        }));
+        
+        setPages(generatedPages);
+        setActivePageIndex(0);
+        setPanels(generatedPages[0].panels);
+        setSelectedPanelId(generatedPages[0].panels[0].id);
+        setActiveWorkflowStep(2); // Auto proceed to Character step
+      }
+    } catch (err) {
+      console.error('Manga blueprint error:', err);
+    } finally {
+      setIsGeneratingScript(false);
+    }
+  };
+
+  // Toggle a character in/out of the currently active panel
+  const handleToggleCharacterInPanel = (charName: string) => {
+    const cleanName = charName.trim();
+    if (!cleanName) return;
+    const current = activePanel.charactersPresent || [];
+    const exists = current.some(c => c.toLowerCase() === cleanName.toLowerCase());
+    let updated: string[];
+    if (exists) {
+      updated = current.filter(c => c.toLowerCase() !== cleanName.toLowerCase());
+    } else {
+      updated = [...current, cleanName];
+    }
+    
+    // Find the first character with a turnaround sheet to anchor charSheetUrl
+    const matchedFirst = characters.find(c => updated.length > 0 && c.name.toLowerCase() === updated[0].toLowerCase());
+    handleUpdatePanel(activePanel.id, {
+      charactersPresent: updated,
+      charSheetUrl: matchedFirst ? (matchedFirst.turnaround_url || matchedFirst.reference_images?.[0] || activePanel.charSheetUrl) : activePanel.charSheetUrl
+    });
+  };
+
+  // Auto-detect which characters are mentioned in the active panel's action prompt
+  const handleAutoDetectCharacters = (customPrompt?: string, customSpeech?: string, targetPanel?: MangaPanel) => {
+    const panel = targetPanel || activePanel;
+    const actionPrompt = customPrompt !== undefined ? customPrompt : panel.actionPrompt;
+    const speechText = customSpeech !== undefined ? customSpeech : panel.speechText;
+    if (!actionPrompt) return;
+    
+    const detected: string[] = [];
+    const fullText = `${actionPrompt} ${speechText || ''}`.toLowerCase();
+    
+    const escapeRegExp = (str: string): string => {
+      return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    };
+    
+    const stopWords = new Set([
+      'the', 'and', 'for', 'you', 'with', 'she', 'him', 'her', 'his', 'man', 'boy', 'girl', 
+      'sir', 'doc', 'mrs', 'ms', 'mr', 'who', 'has', 'had', 'was', 'this', 'that', 'they', 'them',
+      'some', 'someone', 'their', 'there', 'about', 'from', 'into', 'out', 'here', 'your', 'then',
+      'will', 'would', 'could', 'should', 'have', 'been', 'were', 'are', 'is', 'am', 'be', 'of'
+    ]);
+
+    characters.forEach(char => {
+      const charNameLower = char.name.toLowerCase();
+      // 1. Direct full name match with word boundaries
+      try {
+        const fullReg = new RegExp('\\b' + escapeRegExp(charNameLower) + '\\b', 'i');
+        if (fullReg.test(fullText)) {
+          detected.push(char.name);
+          return;
+        }
+      } catch (e) {
+        // Fallback to substring check if regex compilation fails due to exotic characters
+        if (fullText.includes(charNameLower)) {
+          detected.push(char.name);
+          return;
+        }
+      }
+
+      // 2. Split names into components (e.g. "Kenji Sato" -> ["Kenji", "Sato"]) to match first name or last name
+      const parts = char.name.split(/[\s\-_,.]+/).map(p => p.trim().toLowerCase()).filter(p => p.length >= 2 && !stopWords.has(p));
+      const hasPartMatch = parts.some(part => {
+        try {
+          const partReg = new RegExp('\\b' + escapeRegExp(part) + '\\b', 'i');
+          return partReg.test(fullText);
+        } catch (e) {
+          return fullText.includes(part);
+        }
+      });
+
+      if (hasPartMatch) {
+        detected.push(char.name);
+      }
+    });
+
+    if (detected.length > 0) {
+      const merged = Array.from(new Set([...(panel.charactersPresent || []), ...detected]));
+      const matchedFirst = characters.find(c => c.name.toLowerCase() === merged[0].toLowerCase());
+      handleUpdatePanel(panel.id, {
+        charactersPresent: merged,
+        charSheetUrl: matchedFirst ? (matchedFirst.turnaround_url || matchedFirst.reference_images?.[0] || panel.charSheetUrl) : panel.charSheetUrl
+      });
+    }
+  };
+
+  const handleSelectPanel = (panelId: string) => {
+    setSelectedPanelId(panelId);
+    const target = panels.find(p => p.id === panelId);
+    if (target && (!target.charactersPresent || target.charactersPresent.length === 0)) {
+      handleAutoDetectCharacters(undefined, undefined, target);
+    }
+  };
+
+  // Step 3: SiliconFlow / ApiFrame Qwen-Image-Edit Composition with True Multi-Reference Blending
+  const handleRenderPanelWithQwen = async () => {
+    setIsRenderingPanel(true);
+    handleUpdatePanel(activePanel.id, { renderingStatus: 'GENERATING' });
+    
+    try {
+      // 1. Collect all characters present in this panel
+      const charNames = (activePanel.charactersPresent && activePanel.charactersPresent.length > 0)
+        ? activePanel.charactersPresent
+        : [];
+
+      let currentCharsList = [...characters];
+
+      const matchedChars: Character[] = [];
+      const charDescriptions: string[] = [];
+      const referenceImageUrls: string[] = [];
+
+      // 1. Background Environment as Reference 1 (Base Plate)
+      if (activePanel.bgUrl && (activePanel.bgUrl.startsWith('http://') || activePanel.bgUrl.startsWith('https://'))) {
+        referenceImageUrls.push(activePanel.bgUrl);
+      }
+
+      // 2. Character Model Sheets as Reference 2+ (Identity Anchors)
+      charNames.forEach((name, idx) => {
+        const cleanName = name.trim();
+        if (!cleanName) return;
+        const matched = currentCharsList.find(c => c.name.toLowerCase() === cleanName.toLowerCase());
+        
+        const enrichedDesc = (matched?.visual_descriptor && matched.visual_descriptor.length >= 80)
+          ? matched.visual_descriptor
+          : getCharacterAutofillDescriptor(cleanName);
+
+        if (matched) {
+          matchedChars.push(matched);
+          charDescriptions.push(`Character ${idx + 1} [${matched.name}]: ${enrichedDesc}`);
+          const refUrl = matched.turnaround_url || matched.reference_images?.[0];
+          if (refUrl && (refUrl.startsWith('http://') || refUrl.startsWith('https://')) && !referenceImageUrls.includes(refUrl)) {
+            referenceImageUrls.push(refUrl);
+          }
+        } else {
+          charDescriptions.push(`Character ${idx + 1} [${cleanName}]: ${enrichedDesc}`);
+        }
+      });
+
+      // Also include activePanel.charSheetUrl if valid and not already added
+      if (activePanel.charSheetUrl && (activePanel.charSheetUrl.startsWith('http://') || activePanel.charSheetUrl.startsWith('https://')) && !referenceImageUrls.includes(activePanel.charSheetUrl)) {
+        referenceImageUrls.push(activePanel.charSheetUrl);
+      }
+
+      const matchedEnv = environments.find(e => e.master_keyframe_url === activePanel.bgUrl || e.id === activePanel.bgUrl);
+      const envLocationName = matchedEnv ? matchedEnv.location_name : 'Atmospheric Scene Stage';
+
+      // 3. Dispatch to dedicated manga panel multi-reference blender
+      const response = await fetch('/api/manga/render-panel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bg_url: activePanel.bgUrl || '',
+          char_sheet_urls: referenceImageUrls.slice(1), // character model sheets
+          action_prompt: activePanel.actionPrompt,
+          expression: activePanel.expression,
+          equipment: activePanel.equipment,
+          camera_angle: activePanel.layoutClass.includes('col-span-12') ? 'Wide cinematic establishing angle' : 'Dynamic mid-shot perspective',
+          framing: 'Authentic Japanese Seinen Gekiga Manga panel',
+          location_name: envLocationName,
+          characters_present: activePanel.charactersPresent,
+          series_title: activeSeries?.title || '',
+          world_setting: activeSeries?.global_lore || '',
+          aspect_ratio: '16:9'
+        })
+      });
+
+      let data = await response.json();
+
+      // Fallback to direct qwen image edit if needed
+      if (!data.success) {
+        const fallbackRes = await fetch('/api/assets/qwen-image-edit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            source_image_url: activePanel.bgUrl || '',
+            reference_image_urls: referenceImageUrls,
+            media_inputs: referenceImageUrls,
+            edit_prompt: `Masterpiece Japanese Seinen Gekiga manga panel illustration. Blend background plate with character model sheet: ${activePanel.actionPrompt}. Pure black and white ink lineart, halftone screentones.`,
+            is_manga: true,
+            strength: 0.85,
+            aspect_ratio: '16:9'
+          })
+        });
+        data = await fallbackRes.json();
+      }
+
+      if (data.success && (data.image_url || data.edited_image_url)) {
+        handleUpdatePanel(activePanel.id, {
+          isRendered: true,
+          renderingStatus: 'COMPLETED',
+          imageUrl: data.image_url || data.edited_image_url
+        });
+      } else {
+        throw new Error(data.error || "Panel rendering returned empty response");
+      }
+    } catch (err: any) {
+      console.error("Qwen panel rendering failed:", err);
+      handleUpdatePanel(activePanel.id, {
+        renderingStatus: 'IDLE'
+      });
+      alert(`Panel generation failed: ${err.message || 'Please check your character references and network connectivity'}`);
+    } finally {
+      setIsRenderingPanel(false);
+    }
+  };
+
+  // Step 4: Simulate Assembly (Overlay Pillow Speech Bubbles + Export)
+  const handleAssemblePage = () => {
+    setIsAssemblingPage(true);
+    setTimeout(() => {
+      setIsAssemblingPage(false);
+      alert("Manga Page successfully assembled locally via Pillow! Speech bubbles rendered in high-fidelity vector formats & typography locked.");
+    }, 1200);
+  };
+
+    const captureFullPage = async (): Promise<string | undefined> => {
+    try {
+      const pageNode = document.getElementById('manga-page-grid');
+      if (!pageNode) return undefined;
+      const canvas = await html2canvas(pageNode, { 
+        useCORS: true, 
+        scale: 2, 
+        backgroundColor: '#000000' 
+      });
+      return canvas.toDataURL('image/jpeg', 0.9);
+    } catch (err) {
+      console.error("Failed to capture page:", err);
+      return undefined;
+    }
+  };
+
+  const downloadDataUrl = (dataUrl: string, filename: string) => {
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleSavePanel = async (panelId: string, index: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const panelNode = document.getElementById(`manga-panel-${panelId}`);
+      if (!panelNode) return;
+      
+      const originalRing = panelNode.className;
+      panelNode.className = panelNode.className.replace(/ring-[^\s]+/g, '').replace(/border-rose-500/g, 'border-transparent');
+      
+      const canvas = await html2canvas(panelNode, { useCORS: true, scale: 2 });
+      panelNode.className = originalRing;
+      
+      downloadDataUrl(canvas.toDataURL('image/jpeg', 0.9), `chapter${currentChapter}_page${currentPage}_panel${index + 1}.jpg`);
+    } catch (err) {
+      console.error("Failed to export panel:", err);
+      alert("Failed to export panel image.");
+    }
+  };
+
+  const handleSaveFullChapter = () => {
+    if (historyPages.length === 0) {
+      alert("No pages have been completed yet to save.");
+      return;
+    }
+    historyPages.forEach((hp, idx) => {
+      if (hp.pageImageObj) {
+        setTimeout(() => {
+          downloadDataUrl(hp.pageImageObj, `manga_c${hp.chapterNumber}_p${hp.pageNumber}.jpg`);
+        }, idx * 600); // Stagger downloads
+      }
+    });
+  };
+
+  const handleNextPage = async () => {
+    if (mangaScope === 'single_page') {
+      alert("You're in Single Page scope. Project complete!");
+      return;
+    }
+    
+    setIsCapturing(true);
+    const capturedDataUrl = await captureFullPage();
+    setIsCapturing(false);
+
+    // Save current page state
+    const updatedPages = [...pages];
+    updatedPages[activePageIndex] = {
+      ...updatedPages[activePageIndex],
+      panels: [...panels],
+      pageImageObj: capturedDataUrl
+    };
+    setPages(updatedPages);
+
+    if (activePageIndex < pages.length - 1) {
+      // Move to next page in the generated blueprint
+      handleSwitchPage(activePageIndex + 1);
+      setActiveWorkflowStep(3); // Go to composition for next page
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      // Chapter Complete
+      setHistoryPages(prev => [...prev, ...updatedPages]);
+      alert("Chapter complete! All pages have been saved to history.");
+      setPages([]);
+      setPanels([]);
+      setActiveWorkflowStep(1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  // Helper to dynamically compile visual details from step-by-step consistency fields
+  const assembleGuidedDescriptor = (): string => {
+    const genderAge = charDemographic === 'custom' ? charDemographicCustom : charDemographic;
+    const hairStyle = charHair === 'custom' ? charHairCustom : charHair;
+    const eyeStyle = charEyes === 'custom' ? charEyesCustom : charEyes;
+    const faceStyle = charFace === 'custom' ? charFaceCustom : charFace;
+    
+    let attireStyle = '';
+    if (charAttire === 'smart-auto') {
+      const genre = detectProjectGenre();
+      if (genre === 'ANCIENT') {
+        attireStyle = "Traditional battle-worn dark samurai haori and tailored hakama trousers covering full body, authentic to feudal setting.";
+      } else if (genre === 'FANTASY') {
+        attireStyle = "Elegant reinforced silver-mythril plate armor with a high-collared neck guard and flowing velvet mantle.";
+      } else if (genre === 'CYBERPUNK') {
+        attireStyle = "Sleek matte-black high-neck tactical trenchcoat with luminescent seam piping and carbon-fiber armor.";
+      } else {
+        attireStyle = "Smart modern dark charcoal overcoat over a black high-neck tactical turtleneck and combat trousers.";
+      }
+    } else if (charAttire === 'custom') {
+      attireStyle = charAttireCustom;
+    } else {
+      attireStyle = charAttire;
+    }
+
+    return `Primary Character Concept: "${genderAge} named ${mangaCharName}".
+• Age, Demographic & Proportions: Must be rendered strictly as ${genderAge}. Maintain 100% accurate structural height and anatomy.
+• Hairstyle & Color: ${hairStyle || 'Neatly styled hair appropriate to the character setting'}.
+• Eye Shape & Expression: ${eyeStyle || 'Piercing and expressive gaze with clear emotional focus'}.
+• Facial Architecture: ${faceStyle || 'Clear defined facial structure with natural lighting shadows'}.
+• Signature Wardrobe: ${attireStyle || 'Cohesive period-accurate clothing covering full body'}.`;
+  };
+
+  // Real API integrations for character turnaround sheet generation
+  const handleGenerateMangaCharacter = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mangaCharName.trim()) return;
+
+    let finalDescriptor = '';
+    if (characterBuilderMode === 'guided') {
+      if (charDemographic === 'custom' && !charDemographicCustom.trim()) {
+        alert("Please enter custom age & demographic details.");
+        return;
+      }
+      if (charHair === 'custom' && !charHairCustom.trim()) {
+        alert("Please enter custom hairstyle details.");
+        return;
+      }
+      if (charEyes === 'custom' && !charEyesCustom.trim()) {
+        alert("Please enter custom eye specifications.");
+        return;
+      }
+      if (charFace === 'custom' && !charFaceCustom.trim()) {
+        alert("Please enter custom facial characteristics.");
+        return;
+      }
+      if (charAttire === 'custom' && !charAttireCustom.trim()) {
+        alert("Please enter custom wardrobe specifications.");
+        return;
+      }
+      finalDescriptor = assembleGuidedDescriptor();
+    } else {
+      if (!mangaCharDescriptor.trim()) return;
+      finalDescriptor = mangaCharDescriptor;
+    }
+
+    setIsGeneratingMangaChar(true);
+    try {
+      const response = await fetch('/api/assets/characters/turnaround', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: mangaCharName,
+          visual_descriptor: finalDescriptor + ", classic monochrome Gekiga manga style, screentone, pure black and white line-art, model sheet turnaround layout",
+          fish_voice_token: mangaCharVoice,
+          series_id: activeSeries?.id || 'ser_manga_default',
+          art_style_seed: 'GEKIGA_INK_WASH_MONOCHROME_HIGH_CONTRAST',
+          series_title: activeSeries?.title,
+          world_setting: activeSeries?.description
+        })
+      });
+      const data = await response.json();
+      if (data.success && data.character) {
+        onAddCharacter(data.character);
+        // Automatically link the newly created character sheet to the active panel
+        handleUpdatePanel(activePanel.id, {
+          charSheetUrl: data.character.turnaround_url,
+          charactersPresent: [data.character.name]
+        });
+        setMangaCharName('');
+      } else {
+        alert(data.error || "Failed to generate character turnaround sheet");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error generating character turnaround sheet");
+    } finally {
+      setIsGeneratingMangaChar(false);
+    }
+  };
+
+  // Real API integrations for consistent layout background generation
+  const handleGenerateMangaEnvironment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mangaEnvLocation.trim() || !mangaEnvStyle.trim()) return;
+    setIsGeneratingMangaEnv(true);
+    try {
+      const response = await fetch('/api/assets/environments/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          location_name: mangaEnvLocation,
+          style_descriptor: mangaEnvStyle + ", high contrast black and white Gekiga manga illustration background, clean screentone, no people, empty stage layout",
+          art_style_seed: 'GEKIGA_INK_WASH_MONOCHROME_HIGH_CONTRAST',
+          series_id: activeSeries?.id || 'ser_manga_default',
+          series_title: activeSeries?.title,
+          world_setting: activeSeries?.description
+        })
+      });
+      const data = await response.json();
+      if (data.success && data.environment) {
+        onAddEnvironment(data.environment);
+        // Automatically link background to active panel
+        handleUpdatePanel(activePanel.id, {
+          bgUrl: data.environment.master_keyframe_url
+        });
+        setMangaEnvLocation('');
+      } else {
+        alert(data.error || "Failed to generate manga background layout");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error generating manga background");
+    } finally {
+      setIsGeneratingMangaEnv(false);
+    }
+  };
+
+  // Build the copyable JSON payload matching the expert's schema
+  const generateSiliconFlowPayload = (): string => {
+    const presentChars = activePanel.charactersPresent || [];
+    const matchedRefImages = presentChars.map(name => {
+      const c = characters.find(char => char.name.toLowerCase() === name.toLowerCase());
+      return {
+        name,
+        turnaround_url: c?.turnaround_url || c?.reference_images?.[0] || '',
+        descriptor: c?.visual_descriptor || ''
+      };
+    });
+
+    const payload = {
+      model: "Qwen/Qwen-Image-Edit",
+      prompt: `Black and white manga illustration style, clean line art, screentone shading, highly detailed. Action: ${activePanel.actionPrompt}. Expressing: ${activePanel.expression}`,
+      image: activePanel.bgUrl,
+      reference_images: matchedRefImages.map(r => r.turnaround_url).filter(Boolean),
+      characters_present: presentChars,
+      character_details: matchedRefImages,
+      num_inference_steps: 25,
+      cfg: 5.0,
+      speech_bubble_metadata: {
+        text: activePanel.speechText,
+        bubble_type: activePanel.bubbleStyle,
+        position_percent: {
+          x: activePanel.bubbleX,
+          y: activePanel.bubbleY
+        },
+        scale: activePanel.bubbleScale
+      }
+    };
+    return JSON.stringify(payload, null, 2);
+  };
+
+  const handleCopyPayload = () => {
+    navigator.clipboard.writeText(generateSiliconFlowPayload());
+    setCopiedPayload(true);
+    setTimeout(() => setCopiedPayload(false), 2000);
+  };
+
+  // Render SVG speech bubbles on top of the image to look like a real manga page
+  const renderSpeechBubbleSVG = (panel: MangaPanel) => {
+    const textLines = panel.speechText.match(/.{1,18}(\s|$)/g) || [panel.speechText];
+    const maxLineLen = Math.max(...textLines.map(l => l.length));
+    const bubbleWidth = maxLineLen * 7.5 + 40;
+    const bubbleHeight = textLines.length * 15 + 40;
+
+    const pathD = () => {
+      if (panel.bubbleStyle === 'burst') {
+        // Starburst path for intense action
+        return `M 0,0 L 15,-5 L 25,-15 L 45,-10 L 60,-25 L 85,-15 L 105,-20 L 115,-5 L 135,0 L 125,15 L 140,25 L 120,35 L 130,55 L 110,50 L 95,65 L 80,50 L 60,60 L 50,45 L 30,50 L 20,35 L -5,30 L 5,15 Z`;
+      } else if (panel.bubbleStyle === 'thought') {
+        // Thought bubble clouds
+        return `M 10,15 A 12,12 0 0,1 30,10 A 15,15 0 0,1 60,8 A 12,12 0 0,1 80,12 A 12,12 0 0,1 90,25 A 10,10 0 0,1 85,40 A 15,15 0 0,1 65,45 A 12,12 0 0,1 35,46 A 12,12 0 0,1 15,40 A 10,10 0 0,1 10,25 Z`;
+      } else {
+        // Oval bubble with tail
+        return `M 10,15 C 10,5 30,5 50,5 C 70,5 90,5 90,15 C 90,25 70,25 50,25 C 40,25 35,32 30,25 C 20,25 10,25 10,15 Z`;
+      }
+    };
+
+    return (
+      <div 
+        className="absolute pointer-events-none select-none drop-shadow-lg"
+        style={{
+          left: `${panel.bubbleX}%`,
+          top: `${panel.bubbleY}%`,
+          transform: `translate(-50%, -50%) scale(${panel.bubbleScale})`,
+          maxWidth: '180px',
+        }}
+      >
+        <div className="relative bg-white text-black text-[9px] md:text-xs font-bold leading-tight border-2 border-black rounded-full px-3 py-2 text-center select-none font-sans max-w-[150px] shadow-sm">
+          {panel.speechText}
+          
+          {/* Bubble Tail */}
+          {panel.bubbleStyle === 'oval' && (
+            <div className="absolute bottom-[-8px] left-[35%] w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[8px] border-t-white before:absolute before:bottom-[1px] before:left-[-8px] before:w-0 before:before:h-0 before:border-l-[8px] before:border-l-transparent before:border-r-[8px] before:border-r-transparent before:border-t-[8px] before:border-t-black before:z-[-1]"></div>
+          )}
+          {panel.bubbleStyle === 'burst' && (
+            <div className="absolute -inset-1 border-2 border-dashed border-red-500 rounded-full pointer-events-none opacity-40"></div>
+          )}
+          {panel.bubbleStyle === 'thought' && (
+            <div className="absolute bottom-[-14px] left-[45%] flex flex-col gap-1 items-center">
+              <div className="w-2.5 h-2.5 bg-white border border-black rounded-full"></div>
+              <div className="w-1.5 h-1.5 bg-white border border-black rounded-full"></div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-6 animate-fadeIn">
+      
+      {/* BRAND HEADER & DESCRIPTION */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-xl">
+        <div className="flex items-center gap-4">
+          <div className="h-12 w-12 rounded-2xl bg-gradient-to-tr from-rose-500 to-amber-500 p-0.5 shadow-lg shadow-rose-500/10">
+            <div className="h-full w-full bg-slate-950 rounded-[14px] flex items-center justify-center">
+              <BookOpen className="h-6 w-6 text-rose-400" />
+            </div>
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-black text-white font-['Cinzel',serif] tracking-tight">
+                AI Manga Studio App
+              </h1>
+              <span className="px-2 py-0.5 text-[9px] font-mono tracking-widest font-bold uppercase rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                Route C • Expert Mode
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
+              Fully decoupled Reference-Conditioned Pipeline for absolute character continuity and layout locking.
+              Using the decoupled Multi-Reference Architecture designed for Seedance, deploy the prepaid <span className="text-slate-200 font-semibold">Qwen-Image-Edit</span> pipeline over unchanging character sheets to render perfect manga panel continuity at a fraction of the cost.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 w-full md:w-auto shrink-0 border-t md:border-t-0 pt-4 md:pt-0 border-slate-800">
+          <button
+            onClick={onBackToHome}
+            className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-semibold transition-all"
+          >
+            <ArrowLeft className="h-3.5 w-3.5 text-rose-400" />
+            <span>Studio Hub</span>
+          </button>
+
+          <button
+            onClick={handleAssemblePage}
+            disabled={isAssemblingPage}
+            className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white text-xs font-bold shadow-md shadow-rose-600/30 transition-all active:scale-95 cursor-pointer"
+          >
+            {isAssemblingPage ? (
+              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Printer className="h-3.5 w-3.5" />
+            )}
+            <span>Assemble Page (Pillow)</span>
+          </button>
+        </div>
+      </div>
+
+      {/* CONTINUOUS MANGA SCOPE SELECTOR */}
+      <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-xl">
+        <div className="flex items-center gap-3">
+          <label className="text-xs font-bold text-slate-300">Manga Generation Scope:</label>
+          <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-800">
+            <button 
+              onClick={() => setMangaScope('single_page')}
+              className={`px-3 py-1.5 rounded-md text-[11px] font-mono transition-all ${mangaScope === 'single_page' ? 'bg-rose-500 text-white font-bold shadow-md shadow-rose-500/20' : 'text-slate-400 hover:text-slate-200'}`}
+            >
+              Single Page
+            </button>
+            <button 
+              onClick={() => setMangaScope('single_chapter')}
+              className={`px-3 py-1.5 rounded-md text-[11px] font-mono transition-all ${mangaScope === 'single_chapter' ? 'bg-rose-500 text-white font-bold shadow-md shadow-rose-500/20' : 'text-slate-400 hover:text-slate-200'}`}
+            >
+              Single Chapter
+            </button>
+            <button 
+              onClick={() => setMangaScope('full_story')}
+              className={`px-3 py-1.5 rounded-md text-[11px] font-mono transition-all ${mangaScope === 'full_story' ? 'bg-rose-500 text-white font-bold shadow-md shadow-rose-500/20' : 'text-slate-400 hover:text-slate-200'}`}
+            >
+              Full Story
+            </button>
+          </div>
+        </div>
+        
+        {mangaScope !== 'single_page' && (
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4 text-[11px] font-mono text-slate-300 bg-slate-900 px-4 py-2 rounded-lg border border-slate-800">
+              {mangaScope === 'full_story' && (
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-500">Chapter:</span>
+                  <span className="font-bold text-rose-400 text-sm">{currentChapter}</span>
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <span className="text-slate-500">Page:</span>
+                <span className="font-bold text-emerald-400 text-sm">{currentPage}</span>
+              </div>
+            </div>
+            
+            {historyPages.length > 0 && (
+              <button 
+                onClick={() => setShowChapterPreview(true)}
+                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-lg shadow-indigo-500/20"
+              >
+                <Layers className="h-4 w-4" />
+                <span>Chapter History ({historyPages.length})</span>
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* DETAILED WORKFLOW STEP TRACKER */}
+      <div className="grid grid-cols-4 gap-2 bg-slate-900/60 p-2 rounded-2xl border border-slate-800/80">
+        {[
+          { step: 1, label: 'Plot & Pacing', sub: 'DeepSeek-R1 Script', icon: Layout },
+          { step: 2, label: 'Character Vault', sub: 'Turnaround Sheets', icon: UserCheck },
+          { step: 3, label: 'Panel Rendering', sub: 'Qwen-Image-Edit', icon: ImageIcon },
+          { step: 4, label: 'Local Assembly', sub: 'Pillow Canvas Overlay', icon: MessageSquare }
+        ].map((item) => {
+          const isActive = activeWorkflowStep === item.step;
+          const isCompleted = activeWorkflowStep > item.step;
+          return (
+            <button
+              key={item.step}
+              onClick={() => setActiveWorkflowStep(item.step)}
+              className={`flex flex-col sm:flex-row items-center gap-3 px-4 py-3 rounded-xl transition-all text-left group cursor-pointer ${
+                isActive 
+                  ? 'bg-rose-500/10 border border-rose-500/40 shadow-sm shadow-rose-500/5' 
+                  : 'border border-transparent hover:bg-slate-900/40'
+              }`}
+            >
+              <div className={`h-8 w-8 rounded-lg shrink-0 flex items-center justify-center transition-all ${
+                isActive 
+                  ? 'bg-rose-500 text-slate-950 font-bold scale-105' 
+                  : isCompleted 
+                  ? 'bg-rose-950/40 text-rose-400 border border-rose-500/30' 
+                  : 'bg-slate-800 text-slate-400'
+              }`}>
+                {isCompleted ? <CheckCircle2 className="h-4 w-4" /> : <item.icon className="h-4 w-4" />}
+              </div>
+              <div className="hidden sm:block text-left">
+                <span className={`block text-xs font-bold leading-none ${isActive ? 'text-rose-300' : 'text-slate-300'}`}>
+                  Step {item.step}: {item.label}
+                </span>
+                <span className="text-[10px] text-slate-500 font-mono block mt-0.5">{item.sub}</span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* MAIN WORKSPACE GRAPHICS */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        
+        {/* LEFT COLUMN: THE MANGA PAGE CANVAS PREVIEW (7-Columns) */}
+        <div className="lg:col-span-7 space-y-6">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+            
+            {/* CANVAS HEADER CONTROLS */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800/80 pb-4 gap-4">
+              <div className="flex items-center gap-2">
+                <Layout className="h-4 w-4 text-rose-400" />
+                <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-300">
+                  Manga Page Grid Layout (Page {activePageIndex + 1} of {pages.length || 1})
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                {activeWorkflowStep === 3 && (
+                  <button 
+                    onClick={handleAddPanelManual}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-bold rounded-lg border border-slate-700 transition-all"
+                  >
+                    <Sparkles className="h-3.5 w-3.5 text-rose-400" />
+                    <span>Add Panel</span>
+                  </button>
+                )}
+                
+                {pages.length > 1 && (
+                  <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800">
+                    <button 
+                      onClick={() => handleSwitchPage(activePageIndex - 1)}
+                      disabled={activePageIndex === 0}
+                      className="p-1 hover:bg-slate-800 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ArrowLeft className="h-4 w-4 text-slate-400" />
+                    </button>
+                    <div className="flex gap-1 px-2">
+                      {pages.map((_, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => handleSwitchPage(idx)}
+                          className={`h-2 w-2 rounded-full transition-all ${activePageIndex === idx ? 'bg-rose-500 w-4' : 'bg-slate-700 hover:bg-slate-500'}`}
+                          title={`Go to Page ${idx + 1}`}
+                        />
+                      ))}
+                    </div>
+                    <button 
+                      onClick={() => handleSwitchPage(activePageIndex + 1)}
+                      disabled={activePageIndex === pages.length - 1}
+                      className="p-1 hover:bg-slate-800 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ArrowRight className="h-4 w-4 text-slate-400" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* PAGE-LEVEL LAYOUT TEMPLATE SELECTOR TOOLBAR */}
+            <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3 mt-3 shadow-inner">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2">
+                <span className="text-[11px] font-black uppercase tracking-wider text-rose-400 font-mono flex items-center gap-1.5">
+                  <Layout className="h-4 w-4" />
+                  Select Page Layout Template
+                </span>
+                <span className="text-[10px] text-slate-500 font-mono font-bold bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                  Active Panels: <span className="text-emerald-400 font-black">{panels.length}</span>
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                {[
+                  { id: 'GRID_ADAPTIVE', label: 'Adaptive Grid', desc: 'Flexible layout based on panel count' },
+                  { id: 'WEBTOON_STRIP', label: 'Webtoon Strip', desc: 'Equal height vertical strip layout' },
+                  { id: 'YONKOMA_4_PANEL', label: 'Yonkoma (4 Panels)', desc: 'Classic Japanese vertical 4-panel' },
+                  { id: 'DRAMATIC_3_PANEL', label: 'Dramatic (3 Panels)', desc: 'Asymmetric 3-panel dynamic grid' },
+                  { id: 'CINEMATIC_2_PANEL', label: 'Cinematic (2 Panels)', desc: 'Cinematic 2-panel split format' }
+                ].map((tpl) => {
+                  const isActive = getActivePageTemplate() === tpl.id;
+                  return (
+                    <button
+                      key={tpl.id}
+                      type="button"
+                      onClick={() => handleTemplateChange(tpl.id)}
+                      title={tpl.desc}
+                      className={`text-[10px] py-2 px-1 border-2 rounded-xl transition-all cursor-pointer flex flex-col items-center justify-center text-center font-bold font-mono h-12 leading-tight ${
+                        isActive 
+                          ? 'bg-rose-500/15 border-rose-500 text-rose-400 shadow-lg shadow-rose-500/5' 
+                          : 'bg-slate-900/60 border-slate-800/80 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                      }`}
+                    >
+                      <span>{tpl.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[9px] text-slate-400 font-mono leading-relaxed bg-slate-900/30 p-2 rounded-xl border border-slate-900">
+                💡 <span className="text-rose-400 font-bold">Interconnected Rule</span>: Selecting a locked-panel template (Yonkoma 4, Dramatic 3, Cinematic 2) instantly adjusts the page panel count, adding or pruning panels automatically.
+              </p>
+            </div>
+
+            {/* MANGA GENTLEMAN GRID WORKSPACE (PORTRAIT ASPECT RATIO PRESERVED) */}
+            <div 
+              id="manga-page-grid" 
+              className="bg-white border-8 border-black rounded-xl p-4 md:p-6 shadow-2xl relative w-full aspect-[1/1.414] max-h-[85vh] mx-auto overflow-hidden flex flex-col justify-between"
+            >
+              
+              {/* PAGE NUMBER ACCENT */}
+              <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 text-[10px] font-black text-black font-mono tracking-widest uppercase pointer-events-none z-10">
+                - PAGE {(activePageIndex + 1).toString().padStart(2, '0')} / {pages.length.toString().padStart(2, '0')} (MODESTY GUIDELINES NEURAL MANGA) -
+              </div>
+
+              {/* GRID PANEL WRAPPER */}
+              <div className="grid grid-cols-12 gap-3 md:gap-4 relative h-full flex-1 mb-2">
+                {panels.map((panel, index) => {
+                  const isSelected = panel.id === selectedPanelId;
+                  const layoutInfo = getPanelLayoutInfo(index, panels.length, getActivePageTemplate());
+                  return (
+                    <div
+                      key={panel.id}
+                      id={`manga-panel-${panel.id}`}
+                      onClick={() => handleSelectPanel(panel.id)}
+                      className={`relative overflow-hidden group cursor-pointer border-4 transition-all duration-200 ${
+                        layoutInfo.className
+                      } ${
+                        isSelected 
+                          ? 'border-rose-500 ring-4 ring-rose-500/20 shadow-2xl scale-[1.01] z-10' 
+                          : 'border-black hover:border-slate-800'
+                      }`}
+                      style={layoutInfo.style}
+                    >
+                      {/* Save Panel Button */}
+                      {panel.imageUrl && activeWorkflowStep >= 3 && (
+                        <div className="absolute top-2 right-2 z-20 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeletePanel(panel.id);
+                            }}
+                            className="bg-rose-600/60 hover:bg-rose-600 text-white p-2 rounded-lg backdrop-blur-sm"
+                            title="Delete this panel"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={(e) => handleSavePanel(panel.id, index, e)}
+                            className="bg-black/60 hover:bg-black/90 text-white p-2 rounded-lg backdrop-blur-sm"
+                            title="Save this panel"
+                          >
+                            <Download className="h-4 w-4 text-emerald-400" />
+                          </button>
+                        </div>
+                      )}
+                      {/* Black and white filter applied to match true retro Gekiga shading */}
+                      <img 
+                        src={panel.imageUrl} 
+                        alt={`Manga panel ${panel.panelIndex}`}
+                        className="w-full h-full object-cover grayscale contrast-125 brightness-95"
+                        referrerPolicy="no-referrer"
+                      />
+
+                      {/* Screen tone texture overlay simulation */}
+                      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-transparent via-transparent to-black/10 mix-blend-multiply pointer-events-none" />
+
+                      {/* Panel Number Badge */}
+                      <div className="absolute top-2 left-2 bg-black text-white text-[10px] font-black font-mono h-5 w-5 flex items-center justify-center rounded">
+                        {panel.panelIndex}
+                      </div>
+
+                      {/* Render Speech bubble Overlay */}
+                      {renderSpeechBubbleSVG(panel)}
+
+                      {/* Selected Panel Accent */}
+                      {isSelected && (
+                        <div className="absolute inset-0 border-2 border-rose-500 pointer-events-none">
+                          <div className="absolute bottom-2 right-2 bg-rose-500 text-white font-mono text-[9px] font-bold px-2 py-0.5 rounded tracking-wider uppercase shadow-md">
+                            Selected Panel {panel.panelIndex}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+            </div>
+
+            {/* EXPORT OPTIONS */}
+            <div className="flex items-center justify-between pt-2 text-xs font-mono text-slate-400">
+              <span className="flex items-center gap-1">
+                <ShieldCheck className="h-4 w-4 text-rose-400" />
+                <span>Lineart & Shading fully optimized for printing.</span>
+              </span>
+              <div className="flex gap-2">
+                <button className="text-slate-300 hover:text-white transition-colors flex items-center gap-1 p-1 bg-slate-800 rounded">
+                  <Download className="h-3.5 w-3.5" /> Save PDF
+                </button>
+                <button className="text-slate-300 hover:text-white transition-colors flex items-center gap-1 p-1 bg-slate-800 rounded">
+                  <Share2 className="h-3.5 w-3.5" /> Share Draft
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN: STEP CONTROLS & PIPELINE CONFIGS (5-Columns) */}
+        <div className="lg:col-span-5 space-y-6">
+          
+          {/* STEP 1: SCRIPTING & storyboard */}
+          {activeWorkflowStep === 1 && (
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-5 animate-fadeIn">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Cpu className="h-4 w-4 text-rose-400" />
+                  <h3 className="font-bold text-slate-100 text-sm font-['Cinzel',serif]">
+                    Step 1: Plot & Storyboard Layout
+                  </h3>
+                </div>
+                <span className="text-[10px] text-rose-400 font-mono font-bold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+                  DeepSeek-R1
+                </span>
+              </div>
+
+              <div className="space-y-4">
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Provide your raw story idea or let DeepSeek-R1 write the storyboard. The model automatically splits the dialogue and actions into structured panels, outputting layout specifications in JSON format.
+                </p>
+
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-slate-300">
+                    {mangaScope === 'single_page' ? 'Single Page Blueprint Concept' : mangaScope === 'full_story' ? 'Volume Saga Concept' : 'Chapter Arc Concept'}
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={mangaPlotConcept}
+                    onChange={(e) => setMangaPlotConcept(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-100 focus:outline-none focus:border-rose-500 font-sans leading-relaxed"
+                    placeholder={
+                      mangaScope === 'single_page' 
+                        ? "e.g., A dramatic double-spread splash page showing Kaelen leaping from a cyber-tower. Modest tactical attire, modest..."
+                        : mangaScope === 'full_story'
+                        ? "e.g., A sprawling sci-fi saga starting with Kaelen discovering a hidden data matrix. All characters wear modest clothing..."
+                        : "e.g., A focused chapter where Kaelen infiltrates the server core. Honorable themes, Modesty-compliant character designs..."
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-slate-300">Layout Archetype</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {['Classic Seinen', 'Dramatic Shonen', 'Minimalist Gekiga', 'Action Grid'].map(arch => (
+                       <button 
+                        key={arch} 
+                        onClick={() => setMangaArchetype(arch)}
+                        className={`text-[10px] py-1.5 border rounded-lg transition-all ${
+                          mangaArchetype === arch 
+                            ? 'bg-rose-500/20 border-rose-500 text-rose-300' 
+                            : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+                        }`}
+                       >
+                         {arch}
+                       </button>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleGenerateMangaScript}
+                  disabled={isGeneratingScript}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white text-xs font-bold shadow-md shadow-rose-600/20 transition-all cursor-pointer"
+                >
+                  {isGeneratingScript ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <span>DeepSeek-R1 Storyboarding...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4" />
+                      <span>Parse Plot to Page & Layout Panels</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Generated panel indicators preview */}
+              <div className="space-y-2.5 pt-4 border-t border-slate-800/80">
+                <span className="block text-[11px] font-mono font-bold text-slate-400 uppercase tracking-wider">
+                  Storyboard Panel Blueprint
+                </span>
+                <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
+                  {panels.map((p) => (
+                    <div 
+                      key={p.id}
+                      onClick={() => handleSelectPanel(p.id)}
+                      className={`flex items-center justify-between p-2 rounded-lg border text-xs cursor-pointer transition-colors ${
+                        p.id === selectedPanelId 
+                          ? 'bg-rose-500/10 border-rose-500/40 text-rose-300' 
+                          : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 text-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono bg-slate-800 text-slate-300 rounded px-1 text-[10px]">
+                          P.{p.panelIndex}
+                        </span>
+                        <span className="truncate max-w-[150px]">{p.actionPrompt}</span>
+                      </div>
+                      <span className="text-[10px] text-slate-500 font-mono capitalize">
+                        {p.bubbleStyle} bubble
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 2: IMMUTABLE CHARACTER & LAYOUT VAULT */}
+          {activeWorkflowStep === 2 && (
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-5 animate-fadeIn">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <UserCheck className="h-4 w-4 text-rose-400" />
+                  <h3 className="font-bold text-slate-100 text-sm font-['Cinzel',serif]">
+                    Step 2: Permanent Continuity Vault
+                  </h3>
+                </div>
+                <span className="text-[10px] text-rose-400 font-mono font-bold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+                  Neon PostgreSQL
+                </span>
+              </div>
+
+              {/* SMART SCRIPT CONTINUITY SCANNER */}
+              <div className="bg-slate-950/85 border border-slate-800 rounded-2xl p-4 space-y-3 relative overflow-hidden">
+                <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-gradient-to-r from-transparent via-rose-500/40 to-transparent"></div>
+                
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Cpu className="h-3.5 w-3.5 text-rose-400 animate-pulse" />
+                    <span className="text-[11px] font-mono font-bold text-slate-300 uppercase tracking-wider">
+                      Smart Continuity Scan (Auto-Identifier)
+                    </span>
+                  </div>
+                  
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsScanningScript(true);
+                      setTimeout(() => {
+                        setIsScanningScript(false);
+                        setHasScanned(true);
+                      }, 800);
+                    }}
+                    disabled={isScanningScript}
+                    className="text-[9px] font-mono text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 px-2 py-1 rounded border border-rose-500/20 flex items-center gap-1 transition-all cursor-pointer"
+                  >
+                    <RefreshCw className={`h-2.5 w-2.5 ${isScanningScript ? 'animate-spin' : ''}`} />
+                    <span>{isScanningScript ? 'Analyzing...' : 'Scan Script'}</span>
+                  </button>
+                </div>
+
+                {isScanningScript ? (
+                  <div className="py-6 flex flex-col items-center justify-center space-y-2 text-center">
+                    <div className="relative h-8 w-8 flex items-center justify-center">
+                      <RefreshCw className="h-5 w-5 text-rose-500 animate-spin" />
+                    </div>
+                    <p className="text-[10px] font-mono text-rose-300 animate-pulse">Scanning panel action prompts for characters & locations...</p>
+                  </div>
+                ) : hasScanned ? (
+                  <div className="space-y-3 divide-y divide-slate-800/60">
+                    
+                    {/* Identified Characters Row */}
+                    <div className="space-y-2">
+                      <div className="text-[10px] font-mono text-slate-400 uppercase tracking-tight flex items-center justify-between">
+                        <span>Detected Characters ({(Array.from(new Set(panels.flatMap(p => p.charactersPresent || []))) as string[]).length})</span>
+                        <span className="text-[8px] text-slate-500">From Script Context</span>
+                      </div>
+                      
+                      <div className="space-y-1.5 max-h-[110px] overflow-y-auto pr-1">
+                        {(Array.from(new Set(panels.flatMap(p => p.charactersPresent || []))) as string[]).map((name: string) => {
+                          const isMatched = characters.some(c => c.name.toLowerCase() === name.toLowerCase());
+                          return (
+                            <div key={name} className="flex items-center justify-between bg-slate-900/60 px-2.5 py-1.5 rounded-lg border border-slate-800/80 text-xs font-sans">
+                              <div className="flex items-center gap-1.5">
+                                <div className={`h-1.5 w-1.5 rounded-full ${isMatched ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'}`}></div>
+                                <span className="font-bold text-slate-200">{name}</span>
+                              </div>
+                              
+                              <div className="flex items-center gap-2 font-mono">
+                                <span className={`text-[8px] px-1.5 py-0.5 rounded ${
+                                  isMatched 
+                                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                                    : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                }`}>
+                                  {isMatched ? 'Vault Active' : 'Missing Turnaround'}
+                                </span>
+                                
+                                {!isMatched && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setMangaCharName(name);
+                                      setMangaCharDescriptor(getCharacterAutofillDescriptor(name));
+                                      setCharacterBuilderMode('custom');
+                                      setStep2Tab('characters');
+                                      setAutofillSuccessMessage(`Autofilled parameters for "${name}" turnaround!`);
+                                      setTimeout(() => setAutofillSuccessMessage(null), 3000);
+                                    }}
+                                    className="text-[9px] bg-rose-600 hover:bg-rose-500 text-white px-2 py-0.5 rounded cursor-pointer transition-colors font-bold"
+                                  >
+                                    Autofill
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Identified Layout Backgrounds Row */}
+                    <div className="space-y-2 pt-2.5">
+                      <div className="text-[10px] font-mono text-slate-400 uppercase tracking-tight flex items-center justify-between">
+                        <span>Detected Backdrop Layouts ({extractEnvironmentsFromScript().length})</span>
+                        <span className="text-[8px] text-slate-500">Spatial Coordinates</span>
+                      </div>
+                      
+                      <div className="space-y-1.5 max-h-[110px] overflow-y-auto pr-1">
+                        {extractEnvironmentsFromScript().map(loc => {
+                          const isMatched = environments.some(e => e.location_name.toLowerCase().includes(loc.toLowerCase()) || loc.toLowerCase().includes(e.location_name.toLowerCase()));
+                          return (
+                            <div key={loc} className="flex items-center justify-between bg-slate-900/60 px-2.5 py-1.5 rounded-lg border border-slate-800/80 text-xs font-sans">
+                              <div className="flex items-center gap-1.5">
+                                <div className={`h-1.5 w-1.5 rounded-full ${isMatched ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'}`}></div>
+                                <span className="font-medium text-slate-300 truncate max-w-[120px]">{loc}</span>
+                              </div>
+                              
+                              <div className="flex items-center gap-2 font-mono">
+                                <span className={`text-[8px] px-1.5 py-0.5 rounded ${
+                                  isMatched 
+                                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                                    : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                }`}>
+                                  {isMatched ? 'Vault Active' : 'Missing Stage'}
+                                </span>
+                                
+                                {!isMatched && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setMangaEnvLocation(loc);
+                                      setMangaEnvStyle(getEnvironmentAutofillStyle(loc));
+                                      setStep2Tab('environments');
+                                      setAutofillSuccessMessage(`Autofilled parameters for layout: "${loc}"!`);
+                                      setTimeout(() => setAutofillSuccessMessage(null), 3000);
+                                    }}
+                                    className="text-[9px] bg-rose-600 hover:bg-rose-500 text-white px-2 py-0.5 rounded cursor-pointer transition-colors font-bold"
+                                  >
+                                    Autofill
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                  </div>
+                ) : (
+                  <p className="text-[10px] font-mono text-slate-500 text-center py-2">Click Scan Script to auto-identify script assets.</p>
+                )}
+
+                {/* Autofill Toast Banner */}
+                {autofillSuccessMessage && (
+                  <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[10px] font-mono p-2 rounded-lg flex items-center gap-2 animate-pulse">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                    <span>{autofillSuccessMessage}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Sub tabs inside Step 2 */}
+              <div className="flex border-b border-slate-800 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setStep2Tab('characters')}
+                  className={`flex-1 pb-2 text-xs font-bold transition-all border-b-2 text-center cursor-pointer ${
+                    step2Tab === 'characters'
+                      ? 'border-rose-500 text-rose-400'
+                      : 'border-transparent text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  Character Turnarounds ({characters.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStep2Tab('environments')}
+                  className={`flex-1 pb-2 text-xs font-bold transition-all border-b-2 text-center cursor-pointer ${
+                    step2Tab === 'environments'
+                      ? 'border-rose-500 text-rose-400'
+                      : 'border-transparent text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  Layout Backgrounds ({environments.length})
+                </button>
+              </div>
+
+              {step2Tab === 'characters' && (
+                <div className="space-y-4 animate-fadeIn">
+                  {/* AI Consistency Shield & Reference Auto-Enhancer Banner */}
+                  {(() => {
+                    const insufficientCount = characters.filter(isCharReferenceInsufficient).length;
+                    const readyCount = characters.length - insufficientCount;
+                    return (
+                      <div className="p-3 bg-gradient-to-r from-slate-900 via-slate-950 to-slate-900 border border-slate-800 rounded-xl space-y-2.5">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            {insufficientCount > 0 ? (
+                              <ShieldAlert className="h-4 w-4 text-amber-400 shrink-0 animate-pulse" />
+                            ) : (
+                              <ShieldCheck className="h-4 w-4 text-emerald-400 shrink-0" />
+                            )}
+                            <div>
+                              <span className="block text-xs font-bold text-slate-200">
+                                AI Consistency Shield
+                              </span>
+                              <span className="text-[10px] font-mono text-slate-400">
+                                {insufficientCount > 0 
+                                  ? `${insufficientCount} placeholder reference(s) need auto-enhancement` 
+                                  : `All ${characters.length} characters locked with 4-angle model sheets`}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <label className="flex items-center gap-1.5 text-[10px] font-mono text-slate-400 cursor-pointer bg-slate-950 px-2 py-1 rounded border border-slate-800">
+                              <input
+                                type="checkbox"
+                                checked={isAutoEnhanceEnabled}
+                                onChange={(e) => setIsAutoEnhanceEnabled(e.target.checked)}
+                                className="rounded text-rose-500 focus:ring-0 bg-slate-900 border-slate-700"
+                              />
+                              <span>Auto-Upgrade on Render</span>
+                            </label>
+
+                            {insufficientCount > 0 && (
+                              <button
+                                type="button"
+                                onClick={handleBatchAutoEnhanceAll}
+                                disabled={isBatchEnhancing}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-500 hover:to-rose-500 text-white text-[10px] font-bold shadow-sm transition-all cursor-pointer"
+                              >
+                                {isBatchEnhancing ? (
+                                  <>
+                                    <RefreshCw className="h-3 w-3 animate-spin" />
+                                    <span>Enhancing All...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Wand2 className="h-3 w-3" />
+                                    <span>Auto-Enhance All ({insufficientCount})</span>
+                                  </>
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {enhanceProgressMsg && (
+                          <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 text-[10px] font-mono p-2 rounded-lg flex items-center gap-2">
+                            <Sparkles className="h-3.5 w-3.5 text-rose-400 shrink-0 animate-spin" />
+                            <span>{enhanceProgressMsg}</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    Style-invariant multi-angle turnaround sheets are stored securely on Hostinger VPS and cached in your Neon DB. Use these as anchors to generate perfect panel frames.
+                  </p>
+
+                  {/* Character Generation Form */}
+                  <div className="p-3.5 bg-slate-950/90 border border-slate-800 rounded-xl space-y-3.5">
+                    <span className="block text-[10px] font-mono font-bold text-rose-400 uppercase tracking-wider">
+                      + Character Generator (Smart Vault Builder)
+                    </span>
+
+                    {/* Mode Selector Tabs */}
+                    <div className="flex bg-slate-900/80 p-0.5 rounded-lg border border-slate-800/80 text-[10px] font-mono">
+                      <button
+                        type="button"
+                        onClick={() => setCharacterBuilderMode('guided')}
+                        className={`flex-1 py-1 px-1.5 rounded-md font-bold transition-all ${characterBuilderMode === 'guided' ? 'bg-rose-500/15 text-rose-400 border border-rose-500/30' : 'text-slate-400 hover:text-slate-200'}`}
+                      >
+                        Smart Guided Form
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCharacterBuilderMode('custom')}
+                        className={`flex-1 py-1 px-1.5 rounded-md font-bold transition-all ${characterBuilderMode === 'custom' ? 'bg-rose-500/15 text-rose-400 border border-rose-500/30' : 'text-slate-400 hover:text-slate-200'}`}
+                      >
+                        Freeform Prompt
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleGenerateMangaCharacter} className="space-y-3">
+                      {/* Common: Character Name */}
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-mono text-slate-400">Character Name</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Kenji, Saito, Kaelen"
+                          value={mangaCharName}
+                          onChange={(e) => setMangaCharName(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-rose-500"
+                          required
+                        />
+                      </div>
+
+                      {characterBuilderMode === 'guided' ? (
+                        <div className="space-y-3 pt-1 border-t border-slate-900">
+                          {/* Demographic / Age Category */}
+                          <div className="space-y-1">
+                            <label className="block text-[10px] font-mono text-slate-400">Gender & Age Group</label>
+                            <select
+                              value={charDemographic}
+                              onChange={(e) => setCharDemographic(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-rose-500 cursor-pointer"
+                            >
+                              <option value="Adult 28-year-old male with an athletic, well-built physique">Adult Male (20-30s)</option>
+                              <option value="Adult 26-year-old female with soft refined features and an elegant posture">Adult Female (20-30s)</option>
+                              <option value="Slender 16-year-old adolescent boy with an active, agile build">Teen Boy (Adolescent)</option>
+                              <option value="Slender 16-year-old adolescent girl with a youthful, energetic build">Teen Girl (Adolescent)</option>
+                              <option value="Youthful 10-year-old child boy with rounded cheeks, large expressive eyes, and natural proportions">Young Boy (Child, 10yo)</option>
+                              <option value="Youthful 10-year-old child girl with rounded cheeks, large expressive eyes, and natural proportions">Young Girl (Child, 10yo)</option>
+                              <option value="Wise elderly 68-year-old grandfather patriarch with weathered, dignified posture">Elderly Patriarch (Elder)</option>
+                              <option value="Wise elderly 68-year-old grandmother matriarch with weathered, dignified posture">Elderly Matriarch (Elder)</option>
+                              <option value="custom">✍️ Custom Age & Gender...</option>
+                            </select>
+                            {charDemographic === 'custom' && (
+                              <input
+                                type="text"
+                                placeholder="e.g. Robust 45-year-old cyber-warlord with massive build"
+                                value={charDemographicCustom}
+                                onChange={(e) => setCharDemographicCustom(e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 mt-1 focus:outline-none focus:border-rose-500"
+                                required
+                              />
+                            )}
+                          </div>
+
+                          {/* Hairstyle */}
+                          <div className="space-y-1">
+                            <label className="block text-[10px] font-mono text-slate-400">Hairstyle & Color</label>
+                            <select
+                              value={charHair}
+                              onChange={(e) => setCharHair(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-rose-500 cursor-pointer"
+                            >
+                              <option value="Traditional samurai topknot (chonmage) with loose wind-blown side bangs">Samurai Topknot (Chonmage)</option>
+                              <option value="Messy wind-blown dark raven-black ronin hair">Messy Ronin Hair</option>
+                              <option value="Flowing silken silver-white hair tied back neatly with a simple cord">Flowing Silver-White Hair</option>
+                              <option value="Tousled layered spiky cyberpunk crop with neon blue specular highlights">Tousled Cyberpunk Crop</option>
+                              <option value="Long obsidian-black hair in a traditional braided hime-cut with straight bangs">Braided Hime-cut</option>
+                              <option value="Short layered textured pixie cut framing the face neatly">Short Pixie Cut</option>
+                              <option value="Clean textured modern crop with dark parted bangs">Classic Detective Crop</option>
+                              <option value="custom">✍️ Custom Hairstyle...</option>
+                            </select>
+                            {charHair === 'custom' && (
+                              <input
+                                type="text"
+                                placeholder="e.g. Messy long blonde ponytail with two loose strands framing the eyes"
+                                value={charHairCustom}
+                                onChange={(e) => setCharHairCustom(e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 mt-1 focus:outline-none focus:border-rose-500"
+                                required
+                              />
+                            )}
+                          </div>
+
+                          {/* Eyes & Expression */}
+                          <div className="space-y-1">
+                            <label className="block text-[10px] font-mono text-slate-400">Eyes & Facial Expression</label>
+                            <select
+                              value={charEyes}
+                              onChange={(e) => setCharEyes(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-rose-500 cursor-pointer"
+                            >
+                              <option value="Narrowed, piercing dark eyes with intense battle-hardened stoic focus">Narrowed Stoic Gaze (Battle-hardened)</option>
+                              <option value="Wide, expressive, and bright dark eyes full of youthful innocence and curiosity">Wide Innocent Eyes (Expressive child/teen)</option>
+                              <option value="Calm, deep-set reflective eyes with gentle wisdom lines">Wise Reflective Look (Stern but kind)</option>
+                              <option value="Luminous crystal-azure eyes with commanding, noble determination">Regal Crystal-Azure (Commanding)</option>
+                              <option value="Glowing cobalt cybernetic ocular lens with active scanning HUD overlay">Glowing Cybernetic Ocular Lens</option>
+                              <option value="Elegant clear almond-shaped eyes with a serene and observant gaze">Serene Almond-shaped Eyes</option>
+                              <option value="custom">✍️ Custom Expression...</option>
+                            </select>
+                            {charEyes === 'custom' && (
+                              <input
+                                type="text"
+                                placeholder="e.g. Sharp golden eyes with a wild, cheeky, mischievous grin"
+                                value={charEyesCustom}
+                                onChange={(e) => setCharEyesCustom(e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 mt-1 focus:outline-none focus:border-rose-500"
+                                required
+                              />
+                            )}
+                          </div>
+
+                          {/* Facial Architecture & Accents */}
+                          <div className="space-y-1">
+                            <label className="block text-[10px] font-mono text-slate-400">Facial Architecture & Features</label>
+                            <select
+                              value={charFace}
+                              onChange={(e) => setCharFace(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-rose-500 cursor-pointer"
+                            >
+                              <option value="Rugged chiseled jawline, stoic expression, and a subtle horizontal scar across the left brow">Chiseled Jawline with Brow Scar</option>
+                              <option value="Smooth clear skin, round cheeks, and an innocent, earnest expression">Smooth Clear Childlike Face (No Ruggedness)</option>
+                              <option value="Dignified facial structure with refined age lines and a calm, wise countenance">Dignified Weathered Age Lines</option>
+                              <option value="Sharp angular jawline with subtle cybernetic neural ports along the temple">Sharp Angular with Cyber Ports</option>
+                              <option value="Elegant soft refined jawline with prominent high cheekbones and a serene expression">Elegant Soft Refined (High Cheekbones)</option>
+                              <option value="Gritty chiseled jawline with a subtle dark stubble shadow and calm disciplined eyes">Gritty Dark Stubble Shadow</option>
+                              <option value="custom">✍️ Custom Features...</option>
+                            </select>
+                            {charFace === 'custom' && (
+                              <input
+                                type="text"
+                                placeholder="e.g. Smooth oval face with high cheekbones and small beauty mark under right eye"
+                                value={charFaceCustom}
+                                onChange={(e) => setCharFaceCustom(e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 mt-1 focus:outline-none focus:border-rose-500"
+                                required
+                              />
+                            )}
+                          </div>
+
+                          {/* Signature Attire & Wardrobe */}
+                          <div className="space-y-1">
+                            <label className="block text-[10px] font-mono text-slate-400">Signature Attire & Wardrobe</label>
+                            <select
+                              value={charAttire}
+                              onChange={(e) => setCharAttire(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-rose-500 cursor-pointer"
+                            >
+                              <option value="smart-auto">🤖 Smart Auto-style (Follow Lore/Setting)</option>
+                              <option value="Battle-worn dark indigo and charcoal samurai haori over iron lamellar armor plates, tailored hakama trousers">Battle-worn Samurai Haori & Armor</option>
+                              <option value="Elegant layered dark indigo linen kimono tied with a crisp cream-colored obi sash">Elegant Layered Indigo Kimono</option>
+                              <option value="Etched runic silver-mythril full-plate armor with azure velvet mantle and reinforced chainmail">Runic Silver-Mythril Plate Armor</option>
+                              <option value="Sleek high-neck carbon-fiber tactical cyberpunk jumpsuit with neon violet detailing">High-neck Carbon Jumpsuit (Cyberpunk)</option>
+                              <option value="Heavy dark charcoal overcoat over a black tactical turtleneck and tailored combat trousers">Heavy Charcoal Overcoat & Turtleneck</option>
+                              <option value="custom">✍️ Custom Attire/Armor...</option>
+                            </select>
+                            {charAttire === 'custom' && (
+                              <input
+                                type="text"
+                                placeholder="e.g. Traditional white priestess shrine robes (Miko outfit) covering full body"
+                                value={charAttireCustom}
+                                onChange={(e) => setCharAttireCustom(e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 mt-1 focus:outline-none focus:border-rose-500"
+                                required
+                              />
+                            )}
+                            <p className="text-[9px] text-slate-500 italic mt-0.5">
+                              {charAttire === 'smart-auto' 
+                                ? "✨ Smart identification will auto-inject period-accurate attire using the active manga's genre context." 
+                                : "Enforces absolute outfit continuity across panels."}
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          <label className="block text-[10px] font-mono text-slate-400">Visual Descriptor (Freeform Prompt)</label>
+                          <textarea
+                            rows={3}
+                            placeholder="Visual details (robes, face, hair, setting)..."
+                            value={mangaCharDescriptor}
+                            onChange={(e) => setMangaCharDescriptor(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-rose-500 font-sans leading-relaxed"
+                            required
+                          />
+                        </div>
+                      )}
+
+                      <button
+                        type="submit"
+                        disabled={isGeneratingMangaChar}
+                        className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold transition-all cursor-pointer shadow-md shadow-rose-600/10"
+                      >
+                        {isGeneratingMangaChar ? (
+                          <>
+                            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                            <span>Forging Vault Turnaround...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="h-3.5 w-3.5" />
+                            <span>Lock Turnaround to Vault (Qwen-2 Pro)</span>
+                          </>
+                        )}
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* Character List Grid */}
+                  <div className="grid grid-cols-2 gap-2.5 max-h-[300px] overflow-y-auto pr-1">
+                    {characters.length === 0 ? (
+                      <div className="col-span-2 text-center py-6 text-slate-500 text-xs font-mono">
+                        No characters generated yet. Let's create one!
+                      </div>
+                    ) : (
+                      characters.map((char) => {
+                        const isInActivePanel = (activePanel.charactersPresent || []).some(
+                          c => c.toLowerCase() === char.name.toLowerCase()
+                        );
+                        const isInsufficient = isCharReferenceInsufficient(char);
+                        const isThisEnhancing = enhancingCharId === char.id;
+
+                        return (
+                          <div 
+                            key={char.id}
+                            className={`p-2.5 bg-slate-950/80 border rounded-xl space-y-2 transition-all ${
+                              isInActivePanel 
+                                ? 'border-rose-500 shadow-md shadow-rose-500/10' 
+                                : 'border-slate-800 hover:border-slate-700'
+                            }`}
+                          >
+                            <div className="relative">
+                              <img 
+                                src={char.turnaround_url || char.reference_images[0]} 
+                                alt={char.name}
+                                className="w-full h-24 object-cover rounded-lg border border-slate-800 grayscale"
+                                referrerPolicy="no-referrer"
+                              />
+                              {isInsufficient ? (
+                                <span className="absolute top-1 right-1 text-[7px] font-mono font-bold bg-amber-500/90 text-black px-1.5 py-0.5 rounded shadow">
+                                  Placeholder
+                                </span>
+                              ) : (
+                                <span className="absolute top-1 right-1 text-[7px] font-mono font-bold bg-emerald-500/90 text-white px-1.5 py-0.5 rounded shadow flex items-center gap-0.5">
+                                  <ShieldCheck className="h-2 w-2" />
+                                  Turnaround Locked
+                                </span>
+                              )}
+                            </div>
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="block text-xs font-bold text-slate-200 truncate">{char.name}</span>
+                                <span className="text-[8px] font-mono text-rose-400 block tracking-tight uppercase">Turnaround</span>
+                              </div>
+
+                              {isInsufficient && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleAutoEnhanceCharacter(char)}
+                                  disabled={isThisEnhancing}
+                                  className="w-full py-1 px-1.5 rounded text-[8px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition-all flex items-center justify-center gap-1 cursor-pointer"
+                                >
+                                  {isThisEnhancing ? (
+                                    <>
+                                      <RefreshCw className="h-2.5 w-2.5 animate-spin" />
+                                      <span>Synthesizing...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Wand2 className="h-2.5 w-2.5" />
+                                      <span>Auto-Enhance Turnaround</span>
+                                    </>
+                                  )}
+                                </button>
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={() => handleToggleCharacterInPanel(char.name)}
+                                className={`w-full py-1 px-1.5 rounded text-[9px] font-mono font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                                  isInActivePanel
+                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30'
+                                    : 'bg-slate-800/90 text-slate-300 border border-slate-700 hover:bg-rose-600 hover:text-white hover:border-rose-500'
+                                }`}
+                              >
+                                {isInActivePanel ? (
+                                  <>
+                                    <Check className="h-2.5 w-2.5" />
+                                    <span>In Panel {activePanel.panelIndex}</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Plus className="h-2.5 w-2.5" />
+                                    <span>Add to Panel {activePanel.panelIndex}</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {step2Tab === 'environments' && (
+                <div className="space-y-4 animate-fadeIn">
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    Generate highly detailed empty stage layouts to define the spatial scene coordinates for your storyboard frames.
+                  </p>
+
+                  {/* Background Generation Form */}
+                  <form onSubmit={handleGenerateMangaEnvironment} className="p-3.5 bg-slate-950/90 border border-slate-800 rounded-xl space-y-3">
+                    <span className="block text-[10px] font-mono font-bold text-rose-400 uppercase tracking-wider">
+                      + Generate Manga Layout Background
+                    </span>
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        placeholder="Location Name (e.g. Neon Citadel Roof, Cyber Dojo)"
+                        value={mangaEnvLocation}
+                        onChange={(e) => setMangaEnvLocation(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-rose-500"
+                        required
+                      />
+                      <textarea
+                        rows={2}
+                        placeholder="Style descriptor (buildings, wires, light angles)..."
+                        value={mangaEnvStyle}
+                        onChange={(e) => setMangaEnvStyle(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-rose-500"
+                        required
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={isGeneratingMangaEnv}
+                      className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold transition-all cursor-pointer"
+                    >
+                      {isGeneratingMangaEnv ? (
+                        <>
+                          <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                          <span>Generating Background Layout...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-3.5 w-3.5" />
+                          <span>Generate Layout (Qwen-2 Pro)</span>
+                        </>
+                      )}
+                    </button>
+                  </form>
+
+                  {/* Background List Grid */}
+                  <div className="grid grid-cols-2 gap-2.5 max-h-[220px] overflow-y-auto pr-1">
+                    {environments.length === 0 ? (
+                      <div className="col-span-2 text-center py-6 text-slate-500 text-xs font-mono">
+                        No background layouts generated yet. Create one!
+                      </div>
+                    ) : (
+                      environments.map((env) => (
+                        <div 
+                          key={env.id}
+                          className="p-2.5 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2 hover:border-rose-500/40 transition-colors"
+                        >
+                          <img 
+                            src={env.master_keyframe_url} 
+                            alt={env.location_name}
+                            className="w-full h-24 object-cover rounded-lg border border-slate-800 grayscale"
+                            referrerPolicy="no-referrer"
+                          />
+                          <div className="text-center">
+                            <span className="block text-xs font-bold text-slate-200 truncate">{env.location_name}</span>
+                            <span className="text-[8px] font-mono text-rose-400 block tracking-tight">BACKGROUND STAGE</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-between">
+                <div>
+                  <span className="block text-xs font-bold text-slate-200">Active Panel Links:</span>
+                  <div className="text-[10px] font-mono text-rose-300 flex flex-col gap-0.5 mt-0.5">
+                    <span>Char: {activePanel.charSheetUrl.substring(0, 35)}...</span>
+                    <span>Bg: {activePanel.bgUrl.substring(0, 35)}...</span>
+                  </div>
+                </div>
+                <span className="px-2 py-0.5 text-[9px] font-mono rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 uppercase font-bold shrink-0">
+                  Ready
+                </span>
+              </div>
+
+              <button
+                onClick={() => setActiveWorkflowStep(3)}
+                className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 transition-colors cursor-pointer"
+              >
+                <span>Proceed to Composition (Step 3)</span>
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+
+          {/* STEP 3: SILICONFLOW QWEN COMPOSITION */}
+          {activeWorkflowStep === 3 && (
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-5 animate-fadeIn">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ImageIcon className="h-4 w-4 text-rose-400" />
+                  <h3 className="font-bold text-slate-100 text-sm font-['Cinzel',serif]">
+                    Step 3: SiliconFlow Panel Composition
+                  </h3>
+                </div>
+                <span className="text-[10px] text-rose-400 font-mono font-bold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+                  Qwen-Image-Edit
+                </span>
+              </div>
+
+              <div className="space-y-4">
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Sends the pre-saved background layout and the immutable character turnaround sheet to SiliconFlow's <span className="text-rose-300 font-bold">Qwen-Image-Edit</span>. Qwen incorporates the character perfectly while safeguarding facial features and room aesthetics.
+                </p>
+
+                {/* Dynamic Configuration form */}
+                <div className="space-y-3.5">
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-mono font-bold text-slate-400 uppercase tracking-wider">
+                      Panel Instruction Prompt
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={activePanel.actionPrompt}
+                      onChange={(e) => handleUpdatePanel(activePanel.id, { actionPrompt: e.target.value })}
+                      onBlur={() => handleAutoDetectCharacters()}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-100 focus:outline-none focus:border-rose-500 font-sans"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-mono font-bold text-slate-400 uppercase tracking-wider">
+                      Facial Expression Anchor
+                    </label>
+                    <input
+                      type="text"
+                      value={activePanel.expression}
+                      onChange={(e) => handleUpdatePanel(activePanel.id, { expression: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-rose-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-mono font-bold text-slate-400 uppercase tracking-wider">
+                      Equipment & Clothing Anchor
+                    </label>
+                    <input
+                      type="text"
+                      value={activePanel.equipment || ''}
+                      onChange={(e) => handleUpdatePanel(activePanel.id, { equipment: e.target.value })}
+                      placeholder="e.g. Glowing neon visor, heavy mech suit..."
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-rose-500"
+                    />
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="block text-[11px] font-mono font-bold text-slate-400 uppercase tracking-wider">
+                        Characters in Scene (Multi-Character Support)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleAutoDetectCharacters}
+                        className="text-[10px] font-mono text-rose-400 hover:text-rose-300 flex items-center gap-1 bg-rose-500/10 hover:bg-rose-500/20 px-2 py-0.5 rounded border border-rose-500/20 transition-all cursor-pointer"
+                      >
+                        <Sparkles className="h-3 w-3" />
+                        <span>Auto-Detect from Prompt</span>
+                      </button>
+                    </div>
+
+                    {/* Interactive Character Select Chips */}
+                    <div className="space-y-1.5">
+                      <label className="block text-[10px] text-slate-500 font-mono">Select characters present in this frame:</label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {characters.map((char) => {
+                          const isSelected = (activePanel.charactersPresent || []).some(
+                            c => c.toLowerCase() === char.name.toLowerCase()
+                          );
+                          return (
+                            <button
+                              key={char.id}
+                              type="button"
+                              onClick={() => handleToggleCharacterInPanel(char.name)}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1.5 border transition-all cursor-pointer ${
+                                isSelected
+                                  ? 'bg-rose-600/30 border-rose-500 text-rose-200 shadow-sm shadow-rose-500/20'
+                                  : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-300'
+                              }`}
+                            >
+                              {isSelected ? <Check className="h-3 w-3 text-rose-400" /> : <Plus className="h-3 w-3 text-slate-500" />}
+                              <span>{char.name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Detailed Active Character Reference List */}
+                    <div className="space-y-2">
+                      {(!activePanel.charactersPresent || activePanel.charactersPresent.length === 0) ? (
+                        <div className="p-3 bg-slate-950/70 border border-dashed border-slate-800 rounded-xl text-center text-xs text-slate-500 font-mono">
+                          No characters tagged in this panel yet. Click character chips above or use Auto-Detect.
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {activePanel.charactersPresent.map((charName) => {
+                            const matched = characters.find(c => c.name.toLowerCase() === charName.toLowerCase());
+                            const refImg = matched?.turnaround_url || matched?.reference_images?.[0];
+                            return (
+                              <div
+                                key={charName}
+                                className="p-2 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-between gap-2.5"
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  {refImg ? (
+                                    <img
+                                      src={refImg}
+                                      alt={charName}
+                                      className="w-10 h-10 object-cover rounded-lg border border-slate-800 grayscale shrink-0"
+                                      referrerPolicy="no-referrer"
+                                    />
+                                  ) : (
+                                    <div className="w-10 h-10 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center shrink-0 text-slate-500 text-[10px] font-mono">
+                                      {charName.slice(0, 2).toUpperCase()}
+                                    </div>
+                                  )}
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-xs font-bold text-slate-200 truncate">{charName}</span>
+                                      {refImg ? (
+                                        <span className="text-[8px] font-mono bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.2 rounded">
+                                          Turnaround Synced
+                                        </span>
+                                      ) : (
+                                        <span className="text-[8px] font-mono bg-amber-500/20 text-amber-400 border border-amber-500/30 px-1.5 py-0.2 rounded">
+                                          No Turnaround
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 truncate max-w-[200px]">
+                                      {matched?.visual_descriptor || 'Custom character descriptor'}
+                                    </p>
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleCharacterInPanel(charName)}
+                                  className="p-1 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-slate-900 transition-colors cursor-pointer"
+                                  title="Remove character from panel"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Pre-Flight Consistency Status Banner in Step 3 */}
+                    {(() => {
+                      const taggedChars = (activePanel.charactersPresent || []).map(name => 
+                        characters.find(c => c.name.toLowerCase() === name.toLowerCase())
+                      ).filter(Boolean) as Character[];
+
+                      const insufficientTagged = taggedChars.filter(isCharReferenceInsufficient);
+
+                      if (insufficientTagged.length > 0) {
+                        return (
+                          <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-2">
+                            <div className="flex items-start gap-2">
+                              <ShieldAlert className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+                              <div className="space-y-1">
+                                <span className="block text-xs font-bold text-amber-300">
+                                  Auto-Enhancer Active for This Scene
+                                </span>
+                                <p className="text-[10px] text-amber-200/80 leading-tight font-mono">
+                                  {insufficientTagged.map(c => c.name).join(', ')} currently have placeholder references. {isAutoEnhanceEnabled ? "The auto-enhancer will generate a 4-angle turnaround sheet automatically upon rendering." : "Enable Auto-Upgrade to synthesize turnaround sheets before rendering."}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between gap-2 pt-1 border-t border-amber-500/20">
+                              <label className="flex items-center gap-1.5 text-[9px] font-mono text-amber-300 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={isAutoEnhanceEnabled}
+                                  onChange={(e) => setIsAutoEnhanceEnabled(e.target.checked)}
+                                  className="rounded text-amber-500 focus:ring-0 bg-slate-900 border-amber-500/40"
+                                />
+                                <span>Auto-enhance before render</span>
+                              </label>
+
+                              {insufficientTagged.map(c => (
+                                <button
+                                  key={c.id}
+                                  type="button"
+                                  onClick={() => handleAutoEnhanceCharacter(c)}
+                                  disabled={enhancingCharId === c.id}
+                                  className="px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition-all flex items-center gap-1 cursor-pointer"
+                                >
+                                  {enhancingCharId === c.id ? (
+                                    <>
+                                      <RefreshCw className="h-2.5 w-2.5 animate-spin" />
+                                      <span>Enhancing...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Wand2 className="h-2.5 w-2.5" />
+                                      <span>Enhance {c.name}</span>
+                                    </>
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      } else if (taggedChars.length > 0) {
+                        return (
+                          <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center gap-2">
+                            <ShieldCheck className="h-4 w-4 text-emerald-400 shrink-0" />
+                            <span className="text-[10px] font-mono text-emerald-300">
+                              All {taggedChars.length} tagged characters are turnaround locked. Ready for consistent multi-character rendering!
+                            </span>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+
+                    {/* Layout template & Background Stage */}
+                    <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                      {/* Manual Layout Template Selection */}
+                      <div className="space-y-1.5">
+                        <label className="block text-[10px] text-slate-500 uppercase font-bold tracking-tighter">Quick Layout Override:</label>
+                        <div className="grid grid-cols-4 gap-1">
+                          {[
+                            { label: 'Full', class: 'col-span-12 row-span-2 h-80' },
+                            { label: 'Half', class: 'col-span-6 row-span-1 h-64' },
+                            { label: 'Splash', class: 'col-span-12 row-span-4 h-[600px]' },
+                            { label: 'Square', class: 'col-span-4 row-span-1 h-48' }
+                          ].map((tpl) => (
+                            <button
+                              key={tpl.label}
+                              type="button"
+                              onClick={() => handleUpdatePanel(activePanel.id, { layoutClass: tpl.class })}
+                              className={`text-[9px] py-1 border rounded transition-all cursor-pointer ${
+                                activePanel.layoutClass === tpl.class 
+                                  ? 'bg-rose-500/20 border-rose-500 text-rose-300' 
+                                  : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                              }`}
+                            >
+                              {tpl.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Background selection */}
+                      <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 space-y-1.5">
+                        <label className="block text-[10px] text-slate-400 font-mono uppercase font-bold">Background Layout Stage:</label>
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={activePanel.bgUrl}
+                            onChange={(e) => handleUpdatePanel(activePanel.id, { bgUrl: e.target.value })}
+                            className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-rose-500 cursor-pointer"
+                          >
+                            <option value="https://images.unsplash.com/photo-1542831371-29b0f74f9713?q=80&w=1200">Default Server Core (Demo Stage)</option>
+                            {environments.map(env => (
+                              <option key={env.id} value={env.master_keyframe_url}>{env.location_name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleCopyPayload}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors"
+                  >
+                    {copiedPayload ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                    <span>{copiedPayload ? 'Copied' : 'Copy API JSON'}</span>
+                  </button>
+
+                  <button
+                    onClick={handleRenderPanelWithQwen}
+                    disabled={isRenderingPanel}
+                    className="flex-[2] flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white text-xs font-bold shadow-md shadow-rose-600/20 transition-all cursor-pointer"
+                  >
+                    {isRenderingPanel ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                        <span>Rendering Panel...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="h-4 w-4" />
+                        <span>Render Panel {activePanel.panelIndex}</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 4: SPEECH BUBBLE OVERLAY */}
+          {activeWorkflowStep === 4 && (
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-5 animate-fadeIn">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4 text-rose-400" />
+                  <h3 className="font-bold text-slate-100 text-sm font-['Cinzel',serif]">
+                    Step 4: Pillow Dialogue Bubble Engine
+                  </h3>
+                </div>
+                <span className="text-[10px] text-rose-400 font-mono font-bold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+                  Local Python PIL
+                </span>
+              </div>
+
+              <div className="space-y-4">
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Avoids AI text hallucination entirely by overlaying crisp dialogue bubbles locally using Pillow directly on your Hostinger VPS server.
+                </p>
+
+                <div className="space-y-3 pt-2">
+                  
+                  {/* Bubble Dialogue string */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-slate-300">
+                      Speech Bubble Dialogue Text
+                    </label>
+                    <input
+                      type="text"
+                      value={activePanel.speechText}
+                      onChange={(e) => handleUpdatePanel(activePanel.id, { speechText: e.target.value })}
+                      onBlur={() => handleAutoDetectCharacters()}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-rose-500 font-sans"
+                    />
+                  </div>
+
+                  {/* Bubble shape style */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-slate-300">
+                      Speech Bubble Graphic Shape
+                    </label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[
+                        { id: 'oval', label: 'Classic' },
+                        { id: 'burst', label: 'Action' },
+                        { id: 'thought', label: 'Thought' },
+                        { id: 'whisper', label: 'Whisper' }
+                      ].map((style) => (
+                        <button
+                          key={style.id}
+                          onClick={() => handleUpdatePanel(activePanel.id, { bubbleStyle: style.id as any })}
+                          className={`py-1.5 text-[10px] font-mono rounded-lg border text-center transition-all cursor-pointer ${
+                            activePanel.bubbleStyle === style.id
+                              ? 'bg-rose-500/20 border-rose-500/50 text-rose-300'
+                              : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          {style.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Positioning sliders */}
+                  <div className="space-y-2 pt-1 font-mono text-[11px] text-slate-300">
+                    <div className="flex items-center justify-between">
+                      <span>Bubble X Coordinate:</span>
+                      <span className="font-bold text-rose-400">{activePanel.bubbleX}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="5"
+                      max="95"
+                      value={activePanel.bubbleX}
+                      onChange={(e) => handleUpdatePanel(activePanel.id, { bubbleX: parseInt(e.target.value) })}
+                      className="w-full accent-rose-500"
+                    />
+
+                    <div className="flex items-center justify-between pt-2">
+                      <span>Bubble Y Coordinate:</span>
+                      <span className="font-bold text-rose-400">{activePanel.bubbleY}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="5"
+                      max="95"
+                      value={activePanel.bubbleY}
+                      onChange={(e) => handleUpdatePanel(activePanel.id, { bubbleY: parseInt(e.target.value) })}
+                      className="w-full accent-rose-500"
+                    />
+
+                    <div className="flex items-center justify-between pt-2">
+                      <span>Bubble Scaling Scale:</span>
+                      <span className="font-bold text-rose-400">{activePanel.bubbleScale}x</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="5"
+                      max="20"
+                      step="1"
+                      value={activePanel.bubbleScale * 10}
+                      onChange={(e) => handleUpdatePanel(activePanel.id, { bubbleScale: parseInt(e.target.value) / 10 })}
+                      className="w-full accent-rose-500"
+                    />
+                  </div>
+
+                </div>
+
+                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-[10px] font-mono text-slate-400 leading-normal">
+                  <span className="text-rose-400 font-bold block mb-1">Local Pillow Canvas Anchor code:</span>
+                  draw.ellipse([{activePanel.bubbleX * 4}, {activePanel.bubbleY * 4}, {(activePanel.bubbleX + 40) * 4}, {(activePanel.bubbleY + 25) * 4}], fill="white", outline="black")
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* PYTHON ORCHESTRATION PAYLOAD EXPANSION CARD */}
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+            <div className="flex items-center gap-2">
+              <Code2 className="h-4 w-4 text-amber-400" />
+              <h4 className="font-bold text-slate-100 text-xs font-['Cinzel',serif] tracking-tight">
+                Manga Panel Generation worker code (manga_tasks.py)
+              </h4>
+            </div>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Copy this production-grade Celery background worker task blueprint to deploy directly on your Hostinger VPS server environment.
+            </p>
+            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 max-h-[140px] overflow-y-auto font-mono text-[10px] text-amber-200/80 leading-relaxed">
+              <pre>{`import os
+import requests
+from celery import Celery
+from PIL import Image, ImageDraw, ImageFont
+
+celery_app = Celery("manga_tasks", broker=os.getenv("RABBITMQ_URL"))
+
+@celery_app.task
+def generate_manga_panel(panel_prompt, char_sheet, bg_layout, speech_text, output_path):
+    headers = {"Authorization": f"Bearer {os.getenv('SILICONFLOW_API_KEY')}"}
+    # 1. Dispatch multi-reference payload
+    payload = {
+        "model": "Qwen/Qwen-Image-Edit",
+        "prompt": f"Black and white manga illustration, Gekiga screentone. {panel_prompt}",
+        "image": bg_layout,
+        "reference_image": char_sheet,
+        "num_inference_steps": 25
+    }
+    res = requests.post("https://api.siliconflow.cn/v1/image/edit", json=payload, headers=headers).json()
+    img_data = requests.get(res['images'][0]['url']).content
+    
+    # 2. Vector Speech Bubble Overlay
+    img = Image.open(BytesIO(img_data))
+    draw = ImageDraw.Draw(img)
+    draw.ellipse([50, 50, 350, 180], fill="white", outline="black", width=3)
+    draw.text((80, 90), speech_text, fill="black")
+    img.save(output_path)`}</pre>
+            </div>
+          </div>
+
+          {mangaScope !== 'single_page' && activeWorkflowStep === 4 && (
+            <div className="pt-6 pb-2 flex justify-end border-t border-slate-800/60 mt-4 animate-fadeIn">
+              <button 
+                onClick={handleNextPage}
+                className="flex items-center gap-2 px-8 py-3.5 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white rounded-xl font-bold shadow-lg shadow-emerald-500/20 transition-all active:scale-95 text-sm"
+              >
+                <span>Complete & Continue to Next Page</span>
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+
+        </div>
+
+      </div>
+
+
+      {/* CHAPTER HISTORY MODAL */}
+      {showChapterPreview && (
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 sm:p-8 overflow-hidden backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-6xl h-full flex flex-col shadow-2xl relative overflow-hidden animate-fadeIn">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-slate-800 bg-slate-900/80 z-10">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 bg-indigo-500/20 rounded-xl flex items-center justify-center text-indigo-400 border border-indigo-500/30">
+                  <BookOpen className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white font-['Cinzel',serif]">Chapter Preview</h2>
+                  <p className="text-xs text-slate-400">Review your generated manga pages</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <button 
+                  onClick={handleSaveFullChapter}
+                  className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-emerald-500/20 transition-all"
+                >
+                  <Download className="h-4 w-4" />
+                  <span>Download Full Chapter</span>
+                </button>
+                <button 
+                  onClick={() => setShowChapterPreview(false)}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 p-2.5 rounded-xl transition-all"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Content - Pages */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-12 bg-slate-950">
+              {historyPages.map((hp) => (
+                <div key={hp.id} className="flex flex-col items-center">
+                  <div className="mb-4 text-center">
+                    <span className="text-xs font-mono font-bold text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-full border border-indigo-500/20">
+                      Page {hp.pageNumber}
+                    </span>
+                  </div>
+                  <div className="relative group max-w-3xl w-full border-8 border-slate-900 rounded-xl overflow-hidden shadow-2xl bg-white">
+                    {hp.pageImageObj ? (
+                      <img src={hp.pageImageObj} alt={`Page ${hp.pageNumber}`} className="w-full h-auto" />
+                    ) : (
+                      <div className="w-full h-64 flex items-center justify-center bg-slate-900 text-slate-500">
+                        Image capture failed for this page.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};

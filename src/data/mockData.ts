@@ -3,7 +3,7 @@ import { FullProjectState, User, Series, Episode, Character, Environment, Scene,
 export const INITIAL_USER: User = {
   id: 'usr_8829_alpha_neon',
   email: 'akmuharrami@gmail.com',
-  wallet_balance: 1420.50, // Shariah-compliant prepaid balance >= 0.00
+  wallet_balance: 1420.50, // No-Debt prepaid balance >= 0.00
   created_at: '2026-08-20T10:00:00Z',
 };
 
@@ -255,7 +255,7 @@ CREATE TYPE project_route AS ENUM ('FULL_EPISODE', 'SHORT_FORM');
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email VARCHAR(255) UNIQUE NOT NULL,
-    wallet_balance DECIMAL(10, 2) NOT NULL DEFAULT 0.00 CHECK (wallet_balance >= 0.00), -- Strict Shariah protection: balance cannot go negative
+    wallet_balance DECIMAL(10, 2) NOT NULL DEFAULT 0.00 CHECK (wallet_balance >= 0.00), -- Strict Modest protection: balance cannot go negative
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -294,13 +294,13 @@ CREATE TABLE characters (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 6. Create Environments Table (Hunyuan Master Keyframe Location Vault)
+-- 6. Create Environments Table (Qwen 2.5-VL Master Keyframe Location Vault)
 CREATE TABLE environments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     series_id UUID NOT NULL REFERENCES series(id) ON DELETE CASCADE,
     location_name VARCHAR(255) NOT NULL,
     style_descriptor TEXT NOT NULL, -- Background setting prompt data
-    master_keyframe_url VARCHAR(512) NOT NULL, -- Static 4K HunyuanImage output on Hostinger VPS (187.127.114.102)
+    master_keyframe_url VARCHAR(512) NOT NULL, -- Static 4K Qwen 2.5-VL output on Hostinger VPS (187.127.114.102)
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -335,7 +335,7 @@ CREATE INDEX idx_environments_series ON environments(series_id);
 export const PYTHON_FASTAPI_BACKEND_CODE = `# ============================================================================
 # AnimeStudio AI - Core API Orchestration & Video Pipeline Layer
 # Tech: Python FastAPI + Celery + RabbitMQ + asyncpg (Neon PostgreSQL)
-# Integrations: DeepSeek-R1, HunyuanImage 3.0, Fish Speech, Seedance 2.5 (Volcano)
+# Integrations: DeepSeek-R1, Qwen 2.5-VL Pro, Fish Speech, Seedance 2.5 (Volcano)
 # ============================================================================
 
 import os
@@ -480,7 +480,7 @@ async def create_project_router(
 ):
     """
     Conditional Project Router:
-    - Checks Shariah prepaid wallet balance (balance >= 0.00).
+    - Checks Modest prepaid wallet balance (balance >= 0.00).
     - Forks execution based on Route A (Full Episode) vs Route B (Short Form).
     - Initializes Series and Episode records in PostgreSQL Neon.
     - Dispatches asynchronous DeepSeek-R1 parsing task to Celery.
@@ -552,7 +552,7 @@ async def compile_episode_endpoint(
     """
     STEP 4: TIMELINE COMPILER & EPISODIC CONTINUITY SAVER
     - Checks Episode and its Route State.
-    - Fetches all scenes, character references, and Hunyuan environment keyframes.
+    - Fetches all scenes, character references, and Qwen environment keyframes.
     - Validates all Seedance 2.5 video chunks are ready.
     - Triggers asynchronous FFmpeg serverless batching worker to stitch master 20-min video.
     """
@@ -653,7 +653,7 @@ async def compile_episode_endpoint(
             "audio_normalization": "EBU R128 (-14 LUFS)",
             "subtitle_burn_in": req.burn_srt_subtitles,
             "color_grading": "BT.709 10-bit HDR to SDR gamut mapping",
-            "continuity_check": "PASS (All character references and Hunyuan keyframes locked)"
+            "continuity_check": "PASS (All character references and Qwen keyframes locked)"
         }
     }
 
@@ -665,7 +665,7 @@ async def spawn_sequel_episode(
 ):
     """
     Spawns follow-up sequel episode (Ep 2, 3, etc.)
-    Preserves 100% of character turnaround vaults and Hunyuan 4K environment keyframes!
+    Preserves 100% of character turnaround vaults and Qwen 4K environment keyframes!
     """
     async with pool.acquire() as conn:
         async with conn.transaction():

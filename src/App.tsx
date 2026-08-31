@@ -7,6 +7,8 @@ import { StudioDesignVaultTab } from './components/StudioDesignVaultTab';
 import { SeedanceMultimodalStudioTab } from './components/SeedanceMultimodalStudioTab';
 import { SoundVoiceStudioTab } from './components/SoundVoiceStudioTab';
 import { TimelineCompilerTab } from './components/TimelineCompilerTab';
+import { MangaStudioTab } from './components/MangaStudioTab';
+import { MangaStudioHomePage } from './components/MangaStudioHomePage';
 import { DatabaseArchitectureModal } from './components/DatabaseArchitectureModal';
 import { PythonOrchestrationModal } from './components/PythonOrchestrationModal';
 import { WalletTopupModal } from './components/WalletTopupModal';
@@ -23,6 +25,7 @@ import { Series, Episode, Character, Environment, Scene, ScreenplayData, Project
 export default function App() {
   // Navigation View: 'home' | 'studio'
   const [currentView, setCurrentView] = useState<'home' | 'studio'>('home');
+  const [homepageMode, setHomepageMode] = useState<'anime' | 'manga'>('manga');
 
   // Global State
   const [user, setUser] = useState(INITIAL_USER);
@@ -71,6 +74,35 @@ export default function App() {
     setUser(prev => ({
       ...prev,
       wallet_balance: prev.wallet_balance + amount
+    }));
+  };
+
+  // Token Deduction Engine
+  const deductTokens = async (tokenCost: number, reason: string): Promise<boolean> => {
+    // 1 USD = 10 Tokens. We store wallet_balance in USD natively.
+    const usdCost = tokenCost / 10;
+    
+    if (user.wallet_balance < usdCost) {
+      alert(`Insufficient Studio Tokens!\nCost: ${tokenCost} Tokens.\nYou have: ${(user.wallet_balance * 10).toLocaleString()} Tokens.\n\nPlease Top-Up to continue ${reason}.`);
+      setIsTopupModalOpen(true);
+      return false;
+    }
+    
+    // Deduct immediately in optimistic UI state
+    setUser(prev => ({
+      ...prev,
+      wallet_balance: Math.max(0, prev.wallet_balance - usdCost)
+    }));
+    
+    // In a full production build, we'd hit /api/wallet/deduct here.
+    return true;
+  };
+
+  const handleSubscribe = (tier: string) => {
+    setUser(prev => ({
+      ...prev,
+      subscription_tier: tier as any,
+      subscription_status: 'ACTIVE'
     }));
   };
 
@@ -133,7 +165,7 @@ export default function App() {
           id: `env_auto_${Date.now()}`,
           series_id: activeSeries?.id || '',
           location_name: sc.location_name,
-          hunyuan_prompt_raw: `4K Master Anime Background: ${sc.location_name}`,
+          qwen_prompt_raw: `4K Master Anime Background: ${sc.location_name}`,
           lighting_condition: 'NEON_CYBER_DUSK',
           perspective_grid_url: '',
           clean_background_url: '',
@@ -279,93 +311,127 @@ export default function App() {
         
         {/* HOMEPAGE VIEW: Single, Pristine, Focused Studio Hub */}
         {currentView === 'home' && (
-          <StudioHomePage
-            seriesList={seriesList}
-            episodes={episodes}
-            characters={characters}
-            environments={environments}
-            walletBalance={user.wallet_balance}
-            onSelectRouteAndCreate={handleSelectRouteAndCreate}
-            onResumeProject={handleResumeProject}
-            onOpenTopupModal={() => setIsTopupModalOpen(true)}
-            onOpenSchemaModal={() => setIsSchemaModalOpen(true)}
-            onOpenPythonModal={() => setIsPythonModalOpen(true)}
-            onSpawnSequel={handleSpawnSequel}
-          />
+          homepageMode === 'manga' ? (
+            <MangaStudioHomePage
+              seriesList={seriesList}
+              episodes={episodes}
+              characters={characters}
+              environments={environments}
+              onSelectRouteAndCreate={handleSelectRouteAndCreate}
+              onResumeProject={handleResumeProject}
+              onOpenPythonModal={() => setIsPythonModalOpen(true)}
+              onSwitchToAnime={() => setHomepageMode('anime')}
+            />
+          ) : (
+            <StudioHomePage
+              seriesList={seriesList}
+              episodes={episodes}
+              characters={characters}
+              environments={environments}
+              walletBalance={user.wallet_balance}
+              onSelectRouteAndCreate={handleSelectRouteAndCreate}
+              onResumeProject={handleResumeProject}
+              onOpenTopupModal={() => setIsTopupModalOpen(true)}
+              onOpenSchemaModal={() => setIsSchemaModalOpen(true)}
+              onOpenPythonModal={() => setIsPythonModalOpen(true)}
+              onSpawnSequel={handleSpawnSequel}
+              onSwitchToManga={() => setHomepageMode('manga')}
+            />
+          )
         )}
 
         {/* STUDIO PIPELINE VIEW: Guided 4-Step Production Workflow */}
         {currentView === 'studio' && (
           <div className="space-y-6">
             
-            {/* STEP 1: DeepSeek Screenplay & Timeline Parser */}
-            {activeTab === 'script' && (
-              <ScriptTimelineParserTab
-                activeEpisode={activeEpisode}
-                activeSeries={activeSeries}
-                onUpdateEpisodeScript={handleUpdateEpisodeScript}
-                onProceedToVault={() => setActiveTab('vault')}
-                onBatchAddEntities={handleBatchAddEntities}
-              />
-            )}
-
-            {/* STEP 2: Studio Design Vault (Hunyuan 4K Layouts & Turnarounds) */}
-            {activeTab === 'vault' && (
-              <StudioDesignVaultTab
+            {activeEpisode?.route?.startsWith('MANGA_') ? (
+              <MangaStudioTab
                 activeSeries={activeSeries}
                 activeEpisode={activeEpisode}
                 characters={currentCharacters}
                 environments={currentEnvironments}
-                scenes={currentScenes}
                 onAddCharacter={handleAddCharacter}
                 onAddEnvironment={handleAddEnvironment}
-                onBatchAddEntities={handleBatchAddEntities}
-                onProceedToSeedance={() => setActiveTab('seedance')}
-                onBackToScript={() => setActiveTab('script')}
-              />
-            )}
-
-            {/* STEP 3: Seedance 2.5 Multimodal Studio (5-Lane Blender) */}
-            {activeTab === 'seedance' && (
-              <SeedanceMultimodalStudioTab
-                activeSeries={activeSeries}
-                activeEpisode={activeEpisode}
-                scenes={currentScenes}
-                characters={currentCharacters}
-                environments={currentEnvironments}
-                onUpdateScene={handleUpdateScene}
-                onProceedToSound={() => setActiveTab('sound')}
-                onProceedToTimeline={() => setActiveTab('sound')}
-                onBackToVault={() => setActiveTab('vault')}
-              />
-            )}
-
-            {/* STEP 4: Sound & Voice Studio (Fish Audio Line-by-Line & Foley SFX) */}
-            {activeTab === 'sound' && (
-              <SoundVoiceStudioTab
-                activeSeries={activeSeries}
-                activeEpisode={activeEpisode}
-                scenes={currentScenes}
-                characters={currentCharacters}
-                onUpdateScene={handleUpdateScene}
-                onProceedToTimeline={() => setActiveTab('timeline')}
-                onBackToSeedance={() => setActiveTab('seedance')}
-              />
-            )}
-
-            {/* STEP 5: Timeline Compiler & Master */}
-            {activeTab === 'timeline' && (
-              <TimelineCompilerTab
-                activeSeries={activeSeries}
-                activeEpisode={activeEpisode}
-                scenes={currentScenes}
-                characters={currentCharacters}
-                environments={currentEnvironments}
-                onUpdateEpisodeMasterVideo={handleUpdateEpisodeMasterVideo}
-                onSpawnSequel={() => handleSpawnSequel()}
-                onBackToSeedance={() => setActiveTab('sound')}
                 onBackToHome={() => setCurrentView('home')}
+                deductTokens={deductTokens}
               />
+            ) : (
+              <>
+                {/* STEP 1: DeepSeek Screenplay & Timeline Parser */}
+                {activeTab === 'script' && (
+                  <ScriptTimelineParserTab
+                    activeEpisode={activeEpisode}
+                    activeSeries={activeSeries}
+                    onUpdateEpisodeScript={handleUpdateEpisodeScript}
+                    onProceedToVault={() => setActiveTab('vault')}
+                    onBatchAddEntities={handleBatchAddEntities}
+                    deductTokens={deductTokens}
+                  />
+                )}
+
+                {/* STEP 2: Studio Design Vault (Qwen 2.5-VL 4K Layouts & Turnarounds) */}
+                {activeTab === 'vault' && (
+                  <StudioDesignVaultTab
+                    activeSeries={activeSeries}
+                    activeEpisode={activeEpisode}
+                    characters={currentCharacters}
+                    environments={currentEnvironments}
+                    scenes={currentScenes}
+                    onAddCharacter={handleAddCharacter}
+                    onAddEnvironment={handleAddEnvironment}
+                    onBatchAddEntities={handleBatchAddEntities}
+                    onProceedToSeedance={() => setActiveTab('seedance')}
+                    onBackToScript={() => setActiveTab('script')}
+                    deductTokens={deductTokens}
+                  />
+                )}
+
+                {/* STEP 3: Seedance 2.5 Multimodal Studio (5-Lane Blender) */}
+                {activeTab === 'seedance' && (
+                  <SeedanceMultimodalStudioTab
+                    activeSeries={activeSeries}
+                    activeEpisode={activeEpisode}
+                    scenes={currentScenes}
+                    characters={currentCharacters}
+                    environments={currentEnvironments}
+                    onUpdateScene={handleUpdateScene}
+                    onProceedToSound={() => setActiveTab('sound')}
+                    onProceedToTimeline={() => setActiveTab('sound')}
+                    onBackToVault={() => setActiveTab('vault')}
+                    deductTokens={deductTokens}
+                  />
+                )}
+
+                {/* STEP 4: Sound & Voice Studio (Fish Audio Line-by-Line & Foley SFX) */}
+                {activeTab === 'sound' && (
+                  <SoundVoiceStudioTab
+                    activeSeries={activeSeries}
+                    activeEpisode={activeEpisode}
+                    scenes={currentScenes}
+                    characters={currentCharacters}
+                    onUpdateScene={handleUpdateScene}
+                    onProceedToTimeline={() => setActiveTab('timeline')}
+                    onBackToSeedance={() => setActiveTab('seedance')}
+                    deductTokens={deductTokens}
+                  />
+                )}
+
+                {/* STEP 5: Timeline Compiler & Master */}
+                {activeTab === 'timeline' && (
+                  <TimelineCompilerTab
+                    activeSeries={activeSeries}
+                    activeEpisode={activeEpisode}
+                    scenes={currentScenes}
+                    characters={currentCharacters}
+                    environments={currentEnvironments}
+                    onUpdateEpisodeMasterVideo={handleUpdateEpisodeMasterVideo}
+                    onSpawnSequel={() => handleSpawnSequel()}
+                    onBackToSeedance={() => setActiveTab('sound')}
+                    onBackToHome={() => setCurrentView('home')}
+                    deductTokens={deductTokens}
+                  />
+                )}
+              </>
             )}
 
           </div>
@@ -398,22 +464,24 @@ export default function App() {
         isOpen={isTopupModalOpen}
         onClose={() => setIsTopupModalOpen(false)}
         currentBalance={user.wallet_balance}
+        currentTier={user.subscription_tier}
         onTopup={handleTopup}
+        onSubscribe={handleSubscribe}
       />
 
       {/* Footer */}
       <footer className="border-t border-slate-800/80 bg-slate-950 py-6 text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <span className="font-bold text-slate-300 font-['Cinzel',serif]">AnimeStudio AI</span>
-            <span>• Zero-to-Episode End-to-End Creation Suite</span>
+            <span className="font-bold text-slate-300 font-['Cinzel',serif]">AI Manga Studio</span>
+            <span>• Professional Continuity Engine</span>
           </div>
           <div className="flex items-center gap-4 font-mono text-[11px] text-slate-400">
             <span>Vercel Neon PostgreSQL</span>
             <span>•</span>
             <span>Volcano Engine Seedance 2.5</span>
             <span>•</span>
-            <span>HunyuanImage 3.0</span>
+            <span>Qwen 2.5-VL Pro</span>
             <span>•</span>
             <span>Fish Speech Audio</span>
           </div>

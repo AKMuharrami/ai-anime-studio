@@ -76,9 +76,11 @@ export const Navbar: React.FC<NavbarProps> = ({
     return () => clearInterval(interval);
   }, []);
 
-  const steps = [
+  const steps = activeEpisode?.route === 'MANGA_STUDIO' ? [
+    { id: 'manga', num: 'C', label: 'AI Manga Studio', sub: 'Qwen-Image-Edit & Pillow Pipeline' }
+  ] : [
     { id: 'script', num: 1, label: 'Screenplay Parser', sub: 'DeepSeek-R1' },
-    { id: 'vault', num: 2, label: 'Design Vault', sub: 'Hunyuan 4K & Turnaround' },
+    { id: 'vault', num: 2, label: 'Design Vault', sub: 'Qwen 4K & Turnaround' },
     { id: 'seedance', num: 3, label: 'Seedance Studio', sub: '5-Lane Multimodal' },
     { id: 'sound', num: 4, label: 'Sound & Voice Studio', sub: 'Fish Audio & Foley (Halal)' },
     { id: 'timeline', num: 5, label: 'Timeline & Master', sub: 'FFmpeg & Subtitles' }
@@ -115,15 +117,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent font-['Cinzel',serif]">
-                      AnimeStudio AI
+                    <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-amber-200 via-amber-400 to-amber-600 bg-clip-text text-transparent font-['Cinzel',serif]">
+                      AI Manga Studio
                     </span>
                     <span className="px-1.5 py-0.5 text-[10px] font-semibold tracking-wider uppercase rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 font-mono">
                       v2.5
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-400 font-mono hidden sm:block">
-                    Zero-to-Episode AI Animation Platform
+                    Zero-to-Chapter AI Manga Platform
                   </p>
                 </div>
               </div>
@@ -168,9 +170,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <span className={`ml-1 px-2 py-0.5 text-[10px] font-semibold rounded-md uppercase tracking-wider font-mono ${
                     activeEpisode.route === 'FULL_EPISODE' 
                       ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40'
-                      : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                      : activeEpisode.route === 'SHORT_FORM'
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                      : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
                   }`}>
-                    {activeEpisode.route === 'FULL_EPISODE' ? 'Route A (20m)' : 'Route B (3m)'}
+                    {activeEpisode.route === 'FULL_EPISODE' ? 'Route A (20m)' : activeEpisode.route === 'SHORT_FORM' ? 'Route B (3m)' : 'Route C (Manga)'}
                   </span>
                 )}
               </div>
@@ -206,48 +210,22 @@ export const Navbar: React.FC<NavbarProps> = ({
               </span>
             </div>
 
-            {/* Prepaid Wallet Pill with Shariah Guard */}
+            {/* Prepaid Wallet Pill with No-Debt Guard */}
             <button
               onClick={onOpenTopupModal}
-              className="group flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 hover:border-emerald-500/60 transition-all text-xs cursor-pointer"
-              title="Shariah-compliant prepaid balance (Debit only, no negative balance)"
+              className="px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300 font-bold border border-emerald-500/20 text-xs transition-colors flex items-center gap-1.5 shadow-sm shadow-emerald-500/10"
             >
-              <div className="flex items-center gap-1 text-emerald-400">
-                <ShieldCheck className="h-3.5 w-3.5" />
-                <span className="font-mono font-bold">${walletBalance.toFixed(2)}</span>
-              </div>
-              <span className="text-[10px] text-emerald-300/80 group-hover:text-emerald-200 hidden lg:inline">
-                Top-up
-              </span>
+              <Plus className="h-3 w-3" />
+              TOP-UP
             </button>
-
-            {/* Architecture Schema Button */}
             <button
-              onClick={onOpenSchemaModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-medium transition-colors cursor-pointer"
-              title="Inspect Neon PostgreSQL Schema & Indexes"
+              onClick={() => {
+                localStorage.removeItem('ais_token');
+                window.location.reload();
+              }}
+              className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white font-bold border border-slate-700 text-xs transition-colors shadow-sm"
             >
-              <Database className="h-3.5 w-3.5 text-sky-400" />
-              <span className="hidden sm:inline">Neon SQL</span>
-            </button>
-
-            {/* Python FastAPI Blueprint Button */}
-            <button
-              onClick={onOpenPythonModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-medium transition-colors cursor-pointer"
-              title="View Python FastAPI / Celery / Volcano Orchestration Code"
-            >
-              <Code2 className="h-3.5 w-3.5 text-amber-400" />
-              <span className="hidden sm:inline">Python API</span>
-            </button>
-
-            {/* New Project Router Button */}
-            <button
-              onClick={onOpenProjectRouter}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white text-xs font-bold shadow-md shadow-rose-600/30 transition-all active:scale-95 cursor-pointer"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span>New Project</span>
+              Sign Out
             </button>
           </div>
 

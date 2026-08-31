@@ -25,6 +25,7 @@ import { Scene, Character, Environment, Episode, Series, SeedancePayload } from 
 import { SceneMediaPlayer } from './SceneMediaPlayer';
 
 interface SeedanceMultimodalStudioTabProps {
+  deductTokens: (cost: number, reason: string) => Promise<boolean>;
   activeSeries: Series | null;
   activeEpisode: Episode | null;
   scenes: Scene[];
@@ -45,7 +46,8 @@ export const SeedanceMultimodalStudioTab: React.FC<SeedanceMultimodalStudioTabPr
   onUpdateScene,
   onProceedToSound,
   onProceedToTimeline,
-  onBackToVault
+  onBackToVault,
+  deductTokens
 }) => {
   const [selectedSceneId, setSelectedSceneId] = useState<string>(scenes[0]?.id || '');
   const [selectedVideoModel, setSelectedVideoModel] = useState<string>('seedance-2.5');

@@ -15,6 +15,8 @@ import {
   Grid, 
   Eye, 
   ShieldCheck, 
+  ShieldAlert,
+  AlertCircle,
   ExternalLink,
   Play,
   Pause,
@@ -27,6 +29,7 @@ import {
 import { Character, Environment, Series, Episode, Scene } from '../types';
 
 interface StudioDesignVaultTabProps {
+  deductTokens: (cost: number, reason: string) => Promise<boolean>;
   activeSeries: Series | null;
   activeEpisode: Episode | null;
   characters: Character[];
@@ -49,13 +52,95 @@ export const StudioDesignVaultTab: React.FC<StudioDesignVaultTabProps> = ({
   onAddEnvironment,
   onBatchAddEntities,
   onProceedToSeedance,
-  onBackToScript
+  onBackToScript,
+  deductTokens
 }) => {
   const [subTab, setSubTab] = useState<'environments' | 'characters' | 'audio'>('characters');
   const [selectedEnv, setSelectedEnv] = useState<Environment | null>(environments[0] || null);
   const [selectedChar, setSelectedChar] = useState<Character | null>(characters[0] || null);
   const [isBatchSyncing, setIsBatchSyncing] = useState(false);
   const [batchSyncMsg, setBatchSyncMsg] = useState<string | null>(null);
+
+  // Character Reference Quality Scanner & Auto-Enhancer States
+  const [enhancingCharId, setEnhancingCharId] = useState<string | null>(null);
+  const [isBatchEnhancing, setIsBatchEnhancing] = useState(false);
+  const [enhanceProgressMsg, setEnhanceProgressMsg] = useState<string | null>(null);
+
+  // Check if a character reference is insufficient (stock placeholder or short descriptor)
+  const isCharReferenceInsufficient = (char: Character): boolean => {
+    const url = char.turnaround_url || char.reference_images?.[0] || char.master_model_sheet_url || '';
+    const desc = char.visual_descriptor || '';
+    const isPlaceholder = !url || url.includes('images.unsplash.com') || url.includes('placeholder') || !url.startsWith('http');
+    const isVague = desc.length < 80;
+    return isPlaceholder || isVague || !char.is_enhanced;
+  };
+
+  // Enhance a single character's reference turnaround sheet
+  const handleAutoEnhanceCharacter = async (char: Character) => {
+    setEnhancingCharId(char.id);
+    setEnhanceProgressMsg(`Synthesizing 4-angle turnaround blueprint for "${char.name}"...`);
+    try {
+      const res = await fetch('/api/assets/characters/auto-enhance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          character: char,
+          series_title: activeSeries?.title,
+          world_setting: activeSeries?.global_lore,
+          art_style_seed: activeSeries?.art_style_seed || 'MAPPA_DARK_FANTASY_CYBER',
+          is_manga: false
+        })
+      });
+      const data = await res.json();
+      if (data.success && data.character) {
+        onAddCharacter(data.character);
+        setSelectedChar(data.character);
+        setEnhanceProgressMsg(`✨ "${char.name}" turnaround successfully locked with 4-angle model sheet!`);
+        setTimeout(() => setEnhanceProgressMsg(null), 3500);
+      }
+    } catch (err) {
+      console.error("Auto enhance error:", err);
+      setEnhanceProgressMsg(`Failed to auto-enhance ${char.name}`);
+    } finally {
+      setEnhancingCharId(null);
+    }
+  };
+
+  // Batch enhance all insufficient characters in the project
+  const handleBatchAutoEnhanceAll = async () => {
+    setIsBatchEnhancing(true);
+    setEnhanceProgressMsg("Scanning project characters for placeholder/insufficient references...");
+    try {
+      const res = await fetch('/api/assets/characters/batch-auto-enhance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          characters,
+          series_title: activeSeries?.title,
+          world_setting: activeSeries?.global_lore,
+          art_style_seed: activeSeries?.art_style_seed || 'MAPPA_DARK_FANTASY_CYBER',
+          is_manga: false
+        })
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.characters)) {
+        data.characters.forEach((c: Character) => {
+          if (c.is_enhanced) onAddCharacter(c);
+        });
+        if (selectedChar) {
+          const updated = data.characters.find((c: Character) => c.id === selectedChar.id);
+          if (updated) setSelectedChar(updated);
+        }
+        setEnhanceProgressMsg(`✨ Batch upgrade complete! Enhanced ${data.enhanced_count} character turnaround sheets.`);
+        setTimeout(() => setEnhanceProgressMsg(null), 4000);
+      }
+    } catch (err) {
+      console.error("Batch auto enhance error:", err);
+      setEnhanceProgressMsg("Batch auto-enhancement encountered an issue.");
+    } finally {
+      setIsBatchEnhancing(false);
+    }
+  };
   
   // Qwen Image-Edit State (Newest Qwen 2.5VL Pro via ApiFrame)
   const [showQwenEditModal, setShowQwenEditModal] = useState(false);
@@ -905,6 +990,69 @@ export const StudioDesignVaultTab: React.FC<StudioDesignVaultTabProps> = ({
       {subTab === 'characters' && (
         <div className="space-y-4">
 
+          {/* AI CHARACTER REFERENCE CONSISTENCY SHIELD & ENHANCER */}
+          {(() => {
+            const insufficientChars = characters.filter(isCharReferenceInsufficient);
+            return (
+              <div className="bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-indigo-500/30 rounded-2xl p-4 shadow-xl space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-start gap-2.5">
+                    <div className="p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 shrink-0">
+                      <ShieldCheck className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-100 uppercase tracking-wider font-mono">
+                          Character Consistency Shield & Auto-Enhancer
+                        </span>
+                        {insufficientChars.length === 0 ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            All Turnarounds Locked (100% Quality)
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                            {insufficientChars.length} Insufficient Reference{insufficientChars.length > 1 ? 's' : ''} Detected
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Guarantees that face landmarks, hair structures, and armor details remain identical across all anime scenes. Insufficient references (stock images or short descriptors) can be auto-upgraded to 4-angle studio turnaround blueprints.
+                      </p>
+                    </div>
+                  </div>
+
+                  {insufficientChars.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleBatchAutoEnhanceAll}
+                      disabled={isBatchEnhancing}
+                      className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-indigo-600 hover:from-amber-500 hover:to-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-amber-600/20 transition-all shrink-0 cursor-pointer disabled:opacity-50"
+                    >
+                      {isBatchEnhancing ? (
+                        <>
+                          <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                          <span>Enhancing {insufficientChars.length} Characters...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Wand2 className="h-3.5 w-3.5" />
+                          <span>Auto-Enhance All ({insufficientChars.length})</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+
+                {enhanceProgressMsg && (
+                  <div className="text-xs px-3 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 flex items-center gap-2 font-mono">
+                    <Sparkles className="h-3.5 w-3.5 text-indigo-400 animate-spin" />
+                    <span>{enhanceProgressMsg}</span>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           {/* Screenplay Cast Smart Identifier */}
           {scriptCharacterNames.length > 0 && (
             <div className="bg-slate-900/90 border border-sky-500/30 rounded-2xl p-4 space-y-3 shadow-lg">
@@ -1086,37 +1234,73 @@ export const StudioDesignVaultTab: React.FC<StudioDesignVaultTabProps> = ({
               <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                 Soul ID Vault ({characters.length})
               </span>
-              {characters.map((char) => (
-                <div
-                  key={char.id}
-                  onClick={() => setSelectedChar(char)}
-                  className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center gap-3 ${
-                    selectedChar?.id === char.id
-                      ? 'bg-purple-950/40 border-purple-500 text-slate-100 shadow-md shadow-purple-500/10'
-                      : 'bg-slate-900 border-slate-800 hover:border-slate-700 text-slate-300'
-                  }`}
-                >
-                  {(char.reference_images?.[0] || char.turnaround_url) ? (
-                    <img
-                      src={char.reference_images?.[0] || char.turnaround_url}
-                      alt={char.name}
-                      className="h-12 w-12 object-cover rounded-xl border border-slate-700 shrink-0"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <div className="h-12 w-12 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-center text-rose-400 shrink-0">
-                      <User className="h-5 w-5" />
+              {characters.map((char) => {
+                const isInsufficient = isCharReferenceInsufficient(char);
+                return (
+                  <div
+                    key={char.id}
+                    onClick={() => setSelectedChar(char)}
+                    className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between gap-3 ${
+                      selectedChar?.id === char.id
+                        ? 'bg-purple-950/40 border-purple-500 text-slate-100 shadow-md shadow-purple-500/10'
+                        : 'bg-slate-900 border-slate-800 hover:border-slate-700 text-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      {(char.reference_images?.[0] || char.turnaround_url) ? (
+                        <img
+                          src={char.reference_images?.[0] || char.turnaround_url}
+                          alt={char.name}
+                          className="h-12 w-12 object-cover rounded-xl border border-slate-700 shrink-0"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <div className="h-12 w-12 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-center text-rose-400 shrink-0">
+                          <User className="h-5 w-5" />
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <h4 className="text-xs font-bold truncate">{char.name}</h4>
+                          {isInsufficient ? (
+                            <span className="px-1.5 py-0.2 rounded text-[8px] font-mono bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0">
+                              Placeholder
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.2 rounded text-[8px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
+                              Turnaround Locked
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-purple-400 font-mono truncate">{char.fish_voice_token}</p>
+                        <span className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
+                          {char.reference_images.length} Turnaround Angles
+                        </span>
+                      </div>
                     </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <h4 className="text-xs font-bold truncate">{char.name}</h4>
-                    <p className="text-[10px] text-purple-400 font-mono truncate">{char.fish_voice_token}</p>
-                    <span className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
-                      {char.reference_images.length} Turnaround Angles
-                    </span>
+
+                    {isInsufficient && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAutoEnhanceCharacter(char);
+                        }}
+                        disabled={enhancingCharId === char.id}
+                        className="px-2 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[9px] font-mono font-bold flex items-center gap-1 transition-all shrink-0 cursor-pointer"
+                        title="Auto-enhance this character turnaround reference"
+                      >
+                        {enhancingCharId === char.id ? (
+                          <RefreshCw className="h-2.5 w-2.5 animate-spin" />
+                        ) : (
+                          <Wand2 className="h-2.5 w-2.5" />
+                        )}
+                        <span>{enhancingCharId === char.id ? '...' : 'Enhance'}</span>
+                      </button>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
           </div>

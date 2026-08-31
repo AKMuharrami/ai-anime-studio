@@ -381,7 +381,7 @@ export const DatabaseArchitectureModal: React.FC<DatabaseArchitectureModalProps>
 
                   <div className="space-y-1 text-[11px] font-mono text-slate-300">
                     <div className="text-slate-400">Key: <span className="text-indigo-300 font-bold">afk_45cc...3b0a</span></div>
-                    <div className="text-slate-400">Image: <span className="text-slate-200">Qwen Pro 4K / Hunyuan 3.0</span></div>
+                    <div className="text-slate-400">Image: <span className="text-slate-200">Qwen 2.5-VL Pro 4K</span></div>
                     <div className="text-slate-400">Video: <span className="text-slate-200">Seedance 2.5 Multimodal</span></div>
                     <div className="text-slate-400">Max Extension: <span className="text-emerald-400 font-bold">180s / Scene</span></div>
                     <div className="text-slate-400">Quality: <span className="text-slate-200">Ultra-HD 24fps 4K</span></div>
@@ -581,7 +581,7 @@ export const DatabaseArchitectureModal: React.FC<DatabaseArchitectureModalProps>
                     </div>
                     <div className="text-[11px] text-slate-400">Path: /var/www/animestudio/storage/keyframes</div>
                     <div className="text-[11px] text-sky-300 break-all">URL: https://api.mumantij-ai.com/storage/keyframes/env_*.png</div>
-                    <div className="text-[10px] text-slate-500">4K Qwen Pro & HunyuanImage 3.0 static keyframes</div>
+                    <div className="text-[10px] text-slate-500">4K Qwen 2.5-VL Pro static keyframes</div>
                   </div>
 
                   <div className="p-3 bg-slate-900/90 rounded-xl border border-slate-800 space-y-1.5">
@@ -670,7 +670,7 @@ server {
           {activeTab === 'schema' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between text-xs text-slate-400">
-                <span>Direct Neon PostgreSQL DDL with Indexes and Shariah Balance Guard</span>
+                <span>Direct Neon PostgreSQL DDL with Indexes and No-Debt Balance Guard</span>
                 <span className="font-mono text-[11px] text-sky-400">verceldb • PostgreSQL 16+</span>
               </div>
               <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 font-mono text-xs text-sky-300 overflow-x-auto leading-relaxed shadow-inner max-h-[420px]">

@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { 
-  Film, 
+import { BookOpen, Wand2, Film, 
   Zap, 
   Sparkles, 
   ArrowRight, 
@@ -29,7 +28,7 @@ interface StudioHomePageProps {
   seriesList: Series[];
   episodes: Episode[];
   characters: Character[];
-  environments: Environments[];
+  environments: Environment[];
   walletBalance: number;
   onSelectRouteAndCreate: (route: ProjectRoute, preset?: any) => void;
   onResumeProject: (series: Series, episode: Episode, step?: string) => void;
@@ -37,6 +36,7 @@ interface StudioHomePageProps {
   onOpenSchemaModal: () => void;
   onOpenPythonModal: () => void;
   onSpawnSequel: (series: Series) => void;
+  onSwitchToManga: () => void;
 }
 
 type Environments = Environment;
@@ -52,7 +52,8 @@ export const StudioHomePage: React.FC<StudioHomePageProps> = ({
   onOpenTopupModal,
   onOpenSchemaModal,
   onOpenPythonModal,
-  onSpawnSequel
+  onSpawnSequel,
+  onSwitchToManga
 }) => {
   const [activePresetCategory, setActivePresetCategory] = useState<'all' | 'cyberpunk' | 'fantasy' | 'action'>('all');
 
@@ -102,6 +103,40 @@ export const StudioHomePage: React.FC<StudioHomePageProps> = ({
   return (
     <div className="space-y-12 pb-16 animate-fadeIn">
       
+      {/* PREMIUM TOP ADVERTISEMENT: PROFESSIONAL AI MANGA STUDIO */}
+      <div className="group relative overflow-hidden rounded-3xl bg-gradient-to-r from-rose-950/40 via-stone-900/50 to-slate-950 border border-rose-500/30 p-6 sm:p-8 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6 transition-all duration-300 hover:border-rose-500/50">
+        <div className="absolute top-0 right-0 -mt-12 -mr-12 w-64 h-64 bg-rose-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="flex items-start gap-5 relative z-10">
+          <div className="h-12 w-12 rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+            <BookOpen className="h-6 w-6 text-rose-300" />
+          </div>
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="px-2.5 py-0.5 text-[9px] font-mono font-bold uppercase tracking-wider rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/40">
+                PRO FEATURE
+              </span>
+              <span className="text-[11px] font-mono font-bold text-amber-400">
+                $2.00 Prepaid Budget Optimized
+              </span>
+            </div>
+            <h3 className="text-lg font-black text-white font-['Cinzel',serif] tracking-wider uppercase">
+              Discover the Professional AI Manga Studio Suite
+            </h3>
+            <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+              Unlock our separate static-art comic pipeline. Generates gorgeous monochrome screentone pages with Qwen-Image-Edit character continuity and local vector dialogue ballooning to completely bypass video render billing.
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={onSwitchToManga}
+          className="relative z-10 shrink-0 w-full md:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white text-xs font-bold shadow-lg shadow-rose-600/20 transition-all active:scale-95 cursor-pointer"
+        >
+          <span>Access Manga Studio Home</span>
+          <ArrowRight className="h-4 w-4" />
+        </button>
+      </div>
+
       {/* Hero Section */}
       <section className="relative overflow-hidden rounded-3xl bg-gradient-to-b from-slate-900 via-slate-900/90 to-slate-950 border border-slate-800/80 p-8 sm:p-12 shadow-2xl">
         <div className="absolute top-0 right-0 -mt-16 -mr-16 w-96 h-96 bg-gradient-to-br from-rose-500/10 via-purple-600/10 to-transparent rounded-full blur-3xl pointer-events-none" />
@@ -112,23 +147,22 @@ export const StudioHomePage: React.FC<StudioHomePageProps> = ({
           {/* Top Pill */}
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-800/90 border border-slate-700/80 text-xs text-slate-300 font-mono shadow-inner">
             <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>Volcano Engine Seedance 2.5 • Hunyuan 4K • DeepSeek-R1 • Fish Speech</span>
+            <span>Volcano Engine Seedance 2.5 • Qwen 2.5-VL 4K • DeepSeek-R1 • Fish Speech</span>
           </div>
 
           {/* Master Headline */}
           <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight text-white font-['Cinzel',serif] leading-tight">
-            Create Full Anime Series & Kinetic Shorts
+            Create Complete Manga Series with Flawless Continuity
           </h1>
-
           <p className="text-base sm:text-lg text-slate-300 max-w-2xl mx-auto font-sans leading-relaxed">
-            Enterprise zero-to-episode animation studio. Turn a single prompt into screenplay breakdowns, persistent 4K character Soul ID vaults, and fully compiled master videos with multi-track lip sync and sequel continuity.
+            Effortlessly craft world-class, story-driven manga from the storyline/plot to the consistent character/scene creation vault to the manga page panel creation to the text editor. Leverage our powerful AI layout engines and strictly enforced character identity vaults to generate beautiful, continuous chapters—complete with expressive panels and dialogue—instantly.
           </p>
 
           {/* Quick Engine Status Bar */}
           <div className="flex flex-wrap items-center justify-center gap-3 pt-2 text-xs font-mono text-slate-400">
             <span className="flex items-center gap-1.5 px-3 py-1 bg-emerald-950/50 text-emerald-300 rounded-lg border border-emerald-500/40">
               <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
-              <span>Shariah AI Guardrails Active</span>
+              <span>Modesty AI Guardrails Active</span>
             </span>
             <span className="flex items-center gap-1.5 px-3 py-1 bg-slate-950/60 rounded-lg border border-slate-800">
               <Cpu className="h-3.5 w-3.5 text-rose-400" />
@@ -136,7 +170,7 @@ export const StudioHomePage: React.FC<StudioHomePageProps> = ({
             </span>
             <span className="flex items-center gap-1.5 px-3 py-1 bg-slate-950/60 rounded-lg border border-slate-800">
               <Palette className="h-3.5 w-3.5 text-purple-400" />
-              <span>Hunyuan 4K Modest Layouts</span>
+              <span>Qwen 2.5-VL 4K Modest Layouts</span>
             </span>
             <span className="flex items-center gap-1.5 px-3 py-1 bg-slate-950/60 rounded-lg border border-slate-800">
               <Volume2 className="h-3.5 w-3.5 text-emerald-400" />
@@ -167,7 +201,7 @@ export const StudioHomePage: React.FC<StudioHomePageProps> = ({
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           
           {/* Choice 1: Route A - Full Episode */}
           <div 
@@ -218,7 +252,7 @@ export const StudioHomePage: React.FC<StudioHomePageProps> = ({
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="h-1.5 w-1.5 rounded-full bg-indigo-400" />
-                  <span>Hunyuan 4K Layout Keyframing</span>
+                  <span>Qwen 2.5-VL 4K Keyframing</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="h-1.5 w-1.5 rounded-full bg-indigo-400" />
@@ -298,7 +332,7 @@ export const StudioHomePage: React.FC<StudioHomePageProps> = ({
               </div>
             </div>
 
-            <div className="pt-8 flex items-center justify-between border-t border-slate-800/80 mt-6">
+              <div className="pt-8 flex items-center justify-between border-t border-slate-800/80 mt-6">
               <div className="flex items-center gap-2 text-xs font-mono text-slate-400">
                 <span>Est. Credits:</span>
                 <span className="font-bold text-emerald-400">$10.00 Prepaid</span>
@@ -505,49 +539,48 @@ export const StudioHomePage: React.FC<StudioHomePageProps> = ({
       {/* Studio Engine & Architecture Quick Dock */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
         
-        {/* Neon PostgreSQL Architecture */}
+        {/* Community Manga Gallery */}
         <div 
-          onClick={onOpenSchemaModal}
+          onClick={() => alert("Community Manga Gallery is launching soon! You will be able to inspect full chapters and short stories generated by our users.")}
           className="bg-slate-900/60 border border-slate-800 hover:border-sky-500/40 rounded-2xl p-6 cursor-pointer transition-all hover:bg-slate-900 group space-y-3"
         >
           <div className="flex items-center justify-between">
             <div className="h-10 w-10 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400 group-hover:scale-110 transition-transform">
-              <Database className="h-5 w-5" />
+              <BookOpen className="h-5 w-5" />
             </div>
             <span className="text-[10px] font-mono text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded">
-              7 Relational Tables
+              Coming Soon
             </span>
           </div>
           <div>
-            <h4 className="font-bold text-sm text-slate-100 font-['Cinzel',serif]">Vercel Neon PostgreSQL</h4>
+            <h4 className="font-bold text-sm text-slate-100 font-['Cinzel',serif]">Community Manga Gallery</h4>
             <p className="text-xs text-slate-400 mt-1">
-              Inspect database schema, performance indexes, and Shariah-compliant prepaid wallet constraints.
+              Inspect examples of full manga chapters, short stories, and single pages created using our platform.
             </p>
           </div>
         </div>
 
-        {/* Python FastAPI / Celery Engine */}
+        {/* AI Layout Engine */}
         <div 
-          onClick={onOpenPythonModal}
-          className="bg-slate-900/60 border border-slate-800 hover:border-emerald-500/40 rounded-2xl p-6 cursor-pointer transition-all hover:bg-slate-900 group space-y-3"
+          className="bg-slate-900/60 border border-slate-800 hover:border-emerald-500/40 rounded-2xl p-6 transition-all hover:bg-slate-900 group space-y-3"
         >
           <div className="flex items-center justify-between">
             <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
-              <Code2 className="h-5 w-5" />
+              <Wand2 className="h-5 w-5" />
             </div>
             <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">
-              FastAPI + Celery
+              DeepSeek + Qwen
             </span>
           </div>
           <div>
-            <h4 className="font-bold text-sm text-slate-100 font-['Cinzel',serif]">Python Orchestration Suite</h4>
+            <h4 className="font-bold text-sm text-slate-100 font-['Cinzel',serif]">Precision Layout Engines</h4>
             <p className="text-xs text-slate-400 mt-1">
-              Exportable backend blueprints for Seedance 2.5 Volcano Engine async workers and FFmpeg pipelines.
+              Harness the power of our structured LLMs to map narrative beats directly onto stunning Manga spreads.
             </p>
           </div>
         </div>
 
-        {/* Shariah Prepaid Wallet Guard */}
+        {/* Modest Prepaid Wallet Guard */}
         <div 
           onClick={onOpenTopupModal}
           className="bg-slate-900/60 border border-slate-800 hover:border-purple-500/40 rounded-2xl p-6 cursor-pointer transition-all hover:bg-slate-900 group space-y-3"
@@ -561,7 +594,7 @@ export const StudioHomePage: React.FC<StudioHomePageProps> = ({
             </span>
           </div>
           <div>
-            <h4 className="font-bold text-sm text-slate-100 font-['Cinzel',serif]">Shariah-Compliant Prepaid Wallet</h4>
+            <h4 className="font-bold text-sm text-slate-100 font-['Cinzel',serif]">No-Debt Prepaid Wallet</h4>
             <p className="text-xs text-slate-400 mt-1">
               Strict non-negative debit balance constraint with zero usury or overdraft debt.
             </p>

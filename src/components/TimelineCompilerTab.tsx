@@ -32,6 +32,7 @@ import confetti from 'canvas-confetti';
 import { Scene, Episode, Series, Character, Environment, DialogueLine } from '../types';
 
 interface TimelineCompilerTabProps {
+  deductTokens: (cost: number, reason: string) => Promise<boolean>;
   activeSeries: Series | null;
   activeEpisode: Episode | null;
   scenes: Scene[];
@@ -52,7 +53,8 @@ export const TimelineCompilerTab: React.FC<TimelineCompilerTabProps> = ({
   onUpdateEpisodeMasterVideo,
   onSpawnSequel,
   onBackToSeedance,
-  onBackToHome
+  onBackToHome,
+  deductTokens
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -68,6 +70,22 @@ export const TimelineCompilerTab: React.FC<TimelineCompilerTabProps> = ({
   const [isCompiling, setIsCompiling] = useState(false);
   const [compileReceipt, setCompileReceipt] = useState<any>(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
+
+  // Advanced Cinematic Non-Linear Editor (NLE) State Engine
+  interface SceneEditConfig {
+    sceneId: string;
+    transitionType: 'none' | 'fade-black' | 'dip-white' | 'cross-dissolve' | 'slide-left' | 'slide-right' | 'zoom-in' | 'zoom-out';
+    transitionDuration: number;
+    hasBlackCard: boolean;
+    blackCardText: string;
+    blackCardDuration: number;
+    blackCardFont: 'cinzel' | 'jakarta' | 'mono';
+    blackCardTextAnimation: 'fade' | 'typewriter' | 'zoom' | 'slide';
+    durationOverride?: number; // Custom timing controls
+  }
+
+  const [editConfigs, setEditConfigs] = useState<Record<string, SceneEditConfig>>({});
+  const [selectedEditSceneId, setSelectedEditSceneId] = useState<string | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const foleyAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -88,15 +106,87 @@ export const TimelineCompilerTab: React.FC<TimelineCompilerTabProps> = ({
     cyber: 'https://actions.google.com/sounds/v1/science_fiction/space_station_atmosphere.ogg'
   };
 
-  // Calculate cumulative scene intervals
+  // Sync edit configs when scenes change
+  useEffect(() => {
+    if (scenes.length === 0) return;
+    setEditConfigs(prev => {
+      const updated = { ...prev };
+      let changed = false;
+      scenes.forEach(sc => {
+        if (!updated[sc.id]) {
+          updated[sc.id] = {
+            sceneId: sc.id,
+            transitionType: 'none',
+            transitionDuration: 1.0,
+            hasBlackCard: false,
+            blackCardText: `Chapter: ${sc.location_name || 'Next Scene'}`,
+            blackCardDuration: 3,
+            blackCardFont: 'cinzel',
+            blackCardTextAnimation: 'fade',
+            durationOverride: sc.duration_seconds || 8
+          };
+          changed = true;
+        }
+      });
+      return changed ? updated : prev;
+    });
+
+    if (scenes.length > 0 && !selectedEditSceneId) {
+      setSelectedEditSceneId(scenes[0].id);
+    }
+  }, [scenes]);
+
+  const handleUpdateConfig = (sceneId: string, updates: Partial<SceneEditConfig>) => {
+    setEditConfigs(prev => ({
+      ...prev,
+      [sceneId]: {
+        ...prev[sceneId],
+        ...updates
+      }
+    }));
+  };
+
+  // Calculate cumulative scene intervals with custom transitions & black title cards
   const sceneTimeline = scenes.map((sc, idx) => {
-    const dur = sc.duration_seconds || 30;
-    const start = scenes.slice(0, idx).reduce((acc, prev) => acc + (prev.duration_seconds || 30), 0);
+    const config = editConfigs[sc.id] || {
+      transitionType: 'none',
+      transitionDuration: 1.0,
+      hasBlackCard: false,
+      blackCardText: '',
+      blackCardDuration: 3,
+      blackCardFont: 'cinzel',
+      blackCardTextAnimation: 'fade',
+      durationOverride: sc.duration_seconds || 8
+    };
+
+    const blackCardDur = config.hasBlackCard ? config.blackCardDuration : 0;
+    const sceneDur = config.durationOverride || sc.duration_seconds || 8;
+
+    // Sum previous segment durations to get our start playhead
+    const start = scenes.slice(0, idx).reduce((acc, prev) => {
+      const prevConfig = editConfigs[prev.id];
+      const pBlack = prevConfig?.hasBlackCard ? prevConfig.blackCardDuration : 0;
+      const pDur = prevConfig?.durationOverride || prev.duration_seconds || 8;
+      return acc + pBlack + pDur;
+    }, 0);
+
+    const blackCardStart = start;
+    const blackCardEnd = start + blackCardDur;
+    const mainSceneStart = blackCardEnd;
+    const mainSceneEnd = mainSceneStart + sceneDur;
+
     return {
       scene: sc,
+      config,
       start,
-      end: start + dur,
-      duration: dur
+      end: mainSceneEnd,
+      blackCardStart,
+      blackCardEnd,
+      mainSceneStart,
+      mainSceneEnd,
+      duration: blackCardDur + sceneDur,
+      sceneDuration: sceneDur,
+      blackCardDuration: blackCardDur
     };
   });
 
@@ -104,22 +194,29 @@ export const TimelineCompilerTab: React.FC<TimelineCompilerTabProps> = ({
     ? sceneTimeline[sceneTimeline.length - 1].end 
     : 180;
 
-  // Determine current active scene based on currentTime
-  const currentSceneSegment = sceneTimeline.find(seg => currentTime >= seg.start && currentTime < seg.end) || sceneTimeline[0];
-  const currentActiveScene = currentSceneSegment?.scene || scenes[0];
+  // Determine current active segment based on playhead currentTime
+  const currentSegment = sceneTimeline.find(seg => currentTime >= seg.start && currentTime < seg.end) || sceneTimeline[0];
+  const currentActiveScene = currentSegment?.scene || scenes[0];
+  const currentConfig = currentSegment?.config;
 
-  // Active dialogue line calculation for current active scene
-  const sceneRelativeTime = currentSceneSegment ? currentTime - currentSceneSegment.start : 0;
-  const sceneFraction = currentSceneSegment ? Math.max(0, Math.min(1, sceneRelativeTime / currentSceneSegment.duration)) : 0;
+  const isCurrentlyInBlackCard = currentSegment && currentConfig?.hasBlackCard && currentTime < currentSegment.blackCardEnd;
+
+  // Compute transition progress (for scene entry transitions)
+  const timeInMainScene = currentSegment ? currentTime - currentSegment.mainSceneStart : 0;
+  const sceneFraction = currentSegment ? Math.max(0, Math.min(1, timeInMainScene / currentSegment.sceneDuration)) : 0;
+
+  // Active dialogue line calculation for current active main scene portion
   const dialogueLines = currentActiveScene?.dialogue || [];
-  const activeDialogueIndex = dialogueLines.length > 0 ? Math.min(dialogueLines.length - 1, Math.floor(sceneFraction * dialogueLines.length)) : -1;
+  const activeDialogueIndex = !isCurrentlyInBlackCard && dialogueLines.length > 0 
+    ? Math.min(dialogueLines.length - 1, Math.floor(sceneFraction * dialogueLines.length)) 
+    : -1;
   const activeDialogue = activeDialogueIndex >= 0 ? dialogueLines[activeDialogueIndex] : null;
 
   const timelineDialogueAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // Real-time Dialogue Speech Playback (Fish Audio / Speech Engine)
   useEffect(() => {
-    if (!isPlaying || isMuted || !activeDialogue) {
+    if (!isPlaying || isMuted || !activeDialogue || isCurrentlyInBlackCard) {
       setIsSpeaking(false);
       if (timelineDialogueAudioRef.current) {
         timelineDialogueAudioRef.current.pause();
@@ -156,7 +253,7 @@ export const TimelineCompilerTab: React.FC<TimelineCompilerTabProps> = ({
         playTimelineSpeechFallback(activeDialogue);
       }
     }
-  }, [activeDialogue, activeDialogueIndex, currentActiveScene?.id, isPlaying, isMuted, volume]);
+  }, [activeDialogue, activeDialogueIndex, currentActiveScene?.id, isPlaying, isMuted, volume, isCurrentlyInBlackCard]);
 
   const playTimelineSpeechFallback = (dialogueItem: DialogueLine) => {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -294,7 +391,23 @@ export const TimelineCompilerTab: React.FC<TimelineCompilerTabProps> = ({
           episode_id: activeEpisode?.id,
           burn_srt_subtitles: burnSubtitles,
           bgm_track_id: bgmTrack,
-          scenes
+          scenes: scenes.map(s => {
+            const config = editConfigs[s.id];
+            return {
+              ...s,
+              duration_seconds: config?.durationOverride || s.duration_seconds || 8,
+              transition: config ? {
+                type: config.transitionType,
+                duration: config.transitionDuration
+              } : undefined,
+              interstitial_card: config?.hasBlackCard ? {
+                text: config.blackCardText,
+                duration: config.blackCardDuration,
+                font: config.blackCardFont,
+                animation: config.blackCardTextAnimation
+              } : undefined
+            };
+          })
         })
       });
 
@@ -324,10 +437,140 @@ export const TimelineCompilerTab: React.FC<TimelineCompilerTabProps> = ({
     return /\.(mp4|webm|mov|m4v)(\?.*)?$/i.test(url) || url.includes('/storage/renders/') || url.includes('gtv-videos-bucket');
   };
 
-  // Kinetic Pan & Zoom animation
-  const scaleValue = isPlaying && isCinematicMotion ? 1 + sceneFraction * 0.07 : 1;
-  const panX = isPlaying && isCinematicMotion ? Math.sin(sceneFraction * Math.PI) * 1.5 : 0;
-  const panY = isPlaying && isCinematicMotion ? Math.cos(sceneFraction * Math.PI * 0.5) * -1 : 0;
+  // Kinetic Pan & Zoom animation combined with dynamic transitions
+  const scaleValue = isPlaying && isCinematicMotion && !isCurrentlyInBlackCard ? 1 + sceneFraction * 0.07 : 1;
+  const panX = isPlaying && isCinematicMotion && !isCurrentlyInBlackCard ? Math.sin(sceneFraction * Math.PI) * 1.5 : 0;
+  const panY = isPlaying && isCinematicMotion && !isCurrentlyInBlackCard ? Math.cos(sceneFraction * Math.PI * 0.5) * -1 : 0;
+
+  const getViewportTransformAndOpacity = () => {
+    if (isCurrentlyInBlackCard) {
+      return { transform: 'none', opacity: 0 };
+    }
+    if (!currentSegment || !currentConfig || currentConfig.transitionType === 'none') {
+      return {
+        transform: `scale(${scaleValue}) translate(${panX}%, ${panY}%)`,
+        opacity: 1
+      };
+    }
+
+    const timeInMain = currentTime - currentSegment.mainSceneStart;
+    const transDur = currentConfig.transitionDuration || 1.0;
+
+    if (timeInMain >= 0 && timeInMain < transDur) {
+      const progress = timeInMain / transDur; // 0 to 1
+
+      switch (currentConfig.transitionType) {
+        case 'slide-left':
+          return {
+            transform: `translateX(${(1 - progress) * 100}%) scale(${scaleValue})`,
+            opacity: 1
+          };
+        case 'slide-right':
+          return {
+            transform: `translateX(${(1 - progress) * -100}%) scale(${scaleValue})`,
+            opacity: 1
+          };
+        case 'zoom-in':
+          return {
+            transform: `scale(${0.5 + progress * 0.5 * scaleValue}) translate(${panX}%, ${panY}%)`,
+            opacity: progress
+          };
+        case 'zoom-out':
+          return {
+            transform: `scale(${1.5 - progress * 0.5 * scaleValue}) translate(${panX}%, ${panY}%)`,
+            opacity: progress
+          };
+        default:
+          return {
+            transform: `scale(${scaleValue}) translate(${panX}%, ${panY}%)`,
+            opacity: 1
+          };
+      }
+    }
+
+    return {
+      transform: `scale(${scaleValue}) translate(${panX}%, ${panY}%)`,
+      opacity: 1
+    };
+  };
+
+  const getTransitionOverlayStyle = () => {
+    if (!currentSegment || !currentConfig || currentConfig.transitionType === 'none') return null;
+    const timeInMain = currentTime - currentSegment.mainSceneStart;
+    const transDur = currentConfig.transitionDuration || 1.0;
+
+    if (timeInMain >= 0 && timeInMain < transDur) {
+      const progress = timeInMain / transDur; // 0 to 1
+
+      switch (currentConfig.transitionType) {
+        case 'fade-black':
+          return {
+            backgroundColor: 'black',
+            opacity: 1 - progress,
+            pointerEvents: 'none' as const
+          };
+        case 'dip-white':
+          return {
+            backgroundColor: 'white',
+            opacity: 1 - progress,
+            pointerEvents: 'none' as const
+          };
+        case 'cross-dissolve':
+          return {
+            backgroundColor: '#020617', // slate-950
+            opacity: 1 - progress,
+            pointerEvents: 'none' as const
+          };
+        default:
+          return null;
+      }
+    }
+    return null;
+  };
+
+  const blackCardProgress = currentSegment && isCurrentlyInBlackCard && currentSegment.blackCardDuration > 0
+    ? (currentTime - currentSegment.blackCardStart) / currentSegment.blackCardDuration
+    : 0;
+
+  const renderBlackCardText = () => {
+    if (!currentSegment || !currentConfig || !isCurrentlyInBlackCard) return null;
+
+    const text = currentConfig.blackCardText;
+    const fontClass = currentConfig.blackCardFont === 'cinzel'
+      ? "font-['Cinzel',serif] tracking-wider text-xl sm:text-2xl"
+      : (currentConfig.blackCardFont === 'mono' ? "font-mono tracking-tight text-sm text-sky-400" : "font-sans font-semibold text-lg");
+
+    const textOpacity = blackCardProgress < 0.15
+      ? (blackCardProgress / 0.15)
+      : (blackCardProgress > 0.85 ? ((1 - blackCardProgress) / 0.15) : 1);
+
+    let textTransform = 'none';
+    if (currentConfig.blackCardTextAnimation === 'zoom') {
+      const scale = 0.95 + blackCardProgress * 0.1;
+      textTransform = `scale(${scale})`;
+    } else if (currentConfig.blackCardTextAnimation === 'slide') {
+      const translateY = (1 - Math.min(1, blackCardProgress / 0.2)) * 20;
+      textTransform = `translateY(${translateY}px)`;
+    }
+
+    return (
+      <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center p-6 z-25">
+        <div 
+          className="text-center text-slate-100 max-w-lg transition-all duration-75"
+          style={{
+            opacity: Math.max(0, Math.min(1, textOpacity)),
+            transform: textTransform
+          }}
+        >
+          <div className="w-8 h-[1px] bg-emerald-500/30 mx-auto mb-4" />
+          <p className={`${fontClass} leading-relaxed text-slate-200 select-none`}>
+            {text}
+          </p>
+          <div className="w-8 h-[1px] bg-emerald-500/30 mx-auto mt-4" />
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -411,8 +654,8 @@ export const TimelineCompilerTab: React.FC<TimelineCompilerTabProps> = ({
                   <div 
                     className="w-full h-full will-change-transform"
                     style={{
-                      transform: `scale(${scaleValue}) translate(${panX}%, ${panY}%)`,
-                      transition: isPlaying ? 'transform 0.1s linear' : 'transform 0.4s ease-out'
+                      ...getViewportTransformAndOpacity(),
+                      transition: isPlaying ? 'transform 0.1s linear, opacity 0.3s ease' : 'transform 0.4s ease-out, opacity 0.3s ease'
                     }}
                   >
                     {isVideoUrl(currentVisualUrl) ? (
@@ -420,7 +663,7 @@ export const TimelineCompilerTab: React.FC<TimelineCompilerTabProps> = ({
                         src={currentVisualUrl}
                         autoPlay={isPlaying}
                         loop
-                        muted={isMuted}
+                        muted={true} // Strip out unwanted AI-generated background music COMPLETELY
                         playsInline
                         className="w-full h-full object-cover"
                       />
@@ -440,6 +683,17 @@ export const TimelineCompilerTab: React.FC<TimelineCompilerTabProps> = ({
                     <p className="text-xs text-slate-500 font-mono mt-1">Render scenes in Step 3 or click Compile Master Episode</p>
                   </div>
                 )}
+
+                {/* Transition FX Overlay Cover */}
+                {getTransitionOverlayStyle() && (
+                  <div 
+                    className="absolute inset-0 z-20"
+                    style={getTransitionOverlayStyle()!}
+                  />
+                )}
+
+                {/* Black Background Text / Interstitial Card Overlay */}
+                {isCurrentlyInBlackCard && renderBlackCardText()}
 
                 {/* Top Overlay Badges */}
                 <div className="absolute top-3 left-3 right-3 flex items-center justify-between z-10 pointer-events-none">
@@ -461,7 +715,7 @@ export const TimelineCompilerTab: React.FC<TimelineCompilerTabProps> = ({
                 </div>
 
                 {/* Center Play Button Overlay on Hover/Pause */}
-                {(!isPlaying || currentTime >= totalDurationSeconds) && currentVisualUrl && (
+                {(!isPlaying || currentTime >= totalDurationSeconds) && currentVisualUrl && !isCurrentlyInBlackCard && (
                   <div className="absolute inset-0 bg-slate-950/30 backdrop-blur-[1px] flex items-center justify-center z-10 transition-opacity">
                     <button
                       onClick={togglePlay}
@@ -474,7 +728,7 @@ export const TimelineCompilerTab: React.FC<TimelineCompilerTabProps> = ({
                 )}
 
                 {/* Dynamic Subtitle Burn-In Banner */}
-                {burnSubtitles && activeDialogue && (
+                {burnSubtitles && activeDialogue && !isCurrentlyInBlackCard && (
                   <div className="absolute bottom-16 left-6 right-6 z-20 flex justify-center pointer-events-none">
                     <div className="max-w-xl bg-slate-950/85 backdrop-blur-md border border-slate-700/80 rounded-xl px-4 py-2 text-center shadow-2xl animate-in fade-in slide-in-from-bottom-1">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 font-mono block">
@@ -650,6 +904,164 @@ export const TimelineCompilerTab: React.FC<TimelineCompilerTabProps> = ({
               </button>
             </div>
 
+            {/* UPGRADED CINEMATIC NLE TIMELINE EDITOR PANEL */}
+            {selectedEditSceneId && (
+              <div className="bg-slate-950 border border-slate-800/80 rounded-2xl p-5 mt-5 space-y-4 shadow-xl">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Sliders className="h-4 w-4 text-indigo-400 animate-pulse" />
+                    <h3 className="font-bold text-slate-100 text-sm">
+                      Cinematic Scene Editor (Scene #{scenes.find(s => s.id === selectedEditSceneId)?.scene_index || 1})
+                    </h3>
+                  </div>
+                  <span className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 font-mono text-[10px] border border-indigo-500/20 font-semibold">
+                    Interactive NLE Matrix
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Transition Settings */}
+                  <div className="space-y-4">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                      <Film className="h-3.5 w-3.5 text-indigo-400" />
+                      Scene Entry Transition
+                    </h4>
+
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs text-slate-300 mb-1 font-medium">Transition Effect</label>
+                        <select
+                          value={editConfigs[selectedEditSceneId]?.transitionType || 'none'}
+                          onChange={(e) => handleUpdateConfig(selectedEditSceneId, { transitionType: e.target.value as any })}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono"
+                        >
+                          <option value="none">None (Hard Cut)</option>
+                          <option value="fade-black">Fade to/from Black</option>
+                          <option value="dip-white">Dip to White Flash</option>
+                          <option value="cross-dissolve">Cross Dissolve (Slate Fade)</option>
+                          <option value="slide-left">Slide Left Transition</option>
+                          <option value="slide-right">Slide Right Transition</option>
+                          <option value="zoom-in">Cinematic Zoom-In</option>
+                          <option value="zoom-out">Cinematic Zoom-Out</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className="text-slate-300">Transition Duration</span>
+                          <span className="font-mono text-indigo-300 font-bold">{(editConfigs[selectedEditSceneId]?.transitionDuration || 1.0).toFixed(1)}s</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0.1"
+                          max="3.0"
+                          step="0.1"
+                          value={editConfigs[selectedEditSceneId]?.transitionDuration || 1.0}
+                          onChange={(e) => handleUpdateConfig(selectedEditSceneId, { transitionDuration: parseFloat(e.target.value) })}
+                          className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className="text-slate-300">Main Clip Screen Duration</span>
+                          <span className="font-mono text-indigo-300 font-bold">{editConfigs[selectedEditSceneId]?.durationOverride || scenes.find(s => s.id === selectedEditSceneId)?.duration_seconds || 8}s</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="1"
+                          max="30"
+                          step="1"
+                          value={editConfigs[selectedEditSceneId]?.durationOverride || scenes.find(s => s.id === selectedEditSceneId)?.duration_seconds || 8}
+                          onChange={(e) => handleUpdateConfig(selectedEditSceneId, { durationOverride: parseInt(e.target.value) })}
+                          className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Interstitial Text Card Settings */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                        <span className="p-1 rounded bg-slate-900 text-emerald-400 border border-slate-800">T</span>
+                        Intro Interstitial Title Card
+                      </h4>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={editConfigs[selectedEditSceneId]?.hasBlackCard || false}
+                          onChange={(e) => handleUpdateConfig(selectedEditSceneId, { hasBlackCard: e.target.checked })}
+                          className="sr-only peer"
+                        />
+                        <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-300 after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                      </label>
+                    </div>
+
+                    {editConfigs[selectedEditSceneId]?.hasBlackCard ? (
+                      <div className="space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                        <div>
+                          <label className="block text-xs text-slate-300 mb-1 font-medium">Card Title / Text Overlay</label>
+                          <textarea
+                            value={editConfigs[selectedEditSceneId]?.blackCardText || ''}
+                            onChange={(e) => handleUpdateConfig(selectedEditSceneId, { blackCardText: e.target.value })}
+                            placeholder="e.g. 3 Years Later..."
+                            rows={2}
+                            className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs text-slate-300 mb-1 font-medium">Card Duration</label>
+                            <input
+                              type="number"
+                              min="1"
+                              max="10"
+                              value={editConfigs[selectedEditSceneId]?.blackCardDuration || 3}
+                              onChange={(e) => handleUpdateConfig(selectedEditSceneId, { blackCardDuration: parseInt(e.target.value) || 3 })}
+                              className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-200 font-mono text-center focus:outline-none"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs text-slate-300 mb-1 font-medium">Text Font</label>
+                            <select
+                              value={editConfigs[selectedEditSceneId]?.blackCardFont || 'cinzel'}
+                              onChange={(e) => handleUpdateConfig(selectedEditSceneId, { blackCardFont: e.target.value as any })}
+                              className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none"
+                            >
+                              <option value="cinzel">Cinzel (Classic Serif)</option>
+                              <option value="jakarta">Jakarta (Modern Clean)</option>
+                              <option value="mono">JetBrains Mono (Hacker)</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs text-slate-300 mb-1 font-medium font-mono text-[11px]">Text Intro Animation</label>
+                          <select
+                            value={editConfigs[selectedEditSceneId]?.blackCardTextAnimation || 'fade'}
+                            onChange={(e) => handleUpdateConfig(selectedEditSceneId, { blackCardTextAnimation: e.target.value as any })}
+                            className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none"
+                          >
+                            <option value="fade">Smooth Fade In & Out</option>
+                            <option value="zoom">Cinematic Focus Scale (Zoom)</option>
+                            <option value="slide">Dynamic Slide Up</option>
+                          </select>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="h-32 rounded-xl border border-dashed border-slate-800 flex flex-col items-center justify-center p-4 text-center">
+                        <p className="text-slate-500 text-xs">No intro black card active for this scene.</p>
+                        <p className="text-[10px] text-slate-600 mt-1">Toggle the switch above to insert a high-end cinematic title card.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
           </div>
         </div>
 
@@ -758,24 +1170,37 @@ export const TimelineCompilerTab: React.FC<TimelineCompilerTabProps> = ({
             </div>
             
             <div className="flex items-center gap-2 min-w-[700px]">
-              {scenes.map((scene) => (
-                <div
-                  key={scene.id}
-                  className="flex-1 bg-sky-950/40 border border-sky-500/40 hover:border-sky-400 p-2.5 rounded-lg transition-all cursor-pointer group relative overflow-hidden"
-                  style={{ flexGrow: scene.duration_seconds }}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-mono font-bold text-[11px] text-sky-300">
-                      Scene #{scene.scene_index}
-                    </span>
-                    <span className="text-[10px] font-mono text-slate-400">{scene.duration_seconds}s</span>
+              {scenes.map((scene) => {
+                const config = editConfigs[scene.id];
+                const activeDur = config?.durationOverride || scene.duration_seconds || 8;
+                const isSelected = selectedEditSceneId === scene.id;
+                return (
+                  <div
+                    key={scene.id}
+                    className={`flex-grow p-2.5 rounded-lg transition-all cursor-pointer group relative overflow-hidden ${
+                      isSelected 
+                        ? 'bg-indigo-950/50 border border-indigo-400 ring-1 ring-indigo-500/50' 
+                        : 'bg-sky-950/20 border border-sky-900/40 hover:border-sky-700'
+                    }`}
+                    style={{ flexGrow: activeDur, flexBasis: `${activeDur * 10}px` }}
+                    onClick={() => setSelectedEditSceneId(scene.id)}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-mono font-bold text-[11px] text-sky-300">
+                        Scene #{scene.scene_index}
+                      </span>
+                      <span className="text-[10px] font-mono text-slate-400">{activeDur}s</span>
+                    </div>
+                    <p className="text-[10px] text-slate-300 truncate font-medium">{scene.location_name}</p>
+                    <div className="flex items-center justify-between mt-1 text-[9px] text-slate-400">
+                      <span className="truncate">{scene.characters_present_names?.join(', ') || 'Ren'}</span>
+                      {config?.hasBlackCard && (
+                        <span className="px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-300 text-[8px] font-mono">Card</span>
+                      )}
+                    </div>
                   </div>
-                  <p className="text-[10px] text-slate-300 truncate font-medium">{scene.location_name}</p>
-                  <div className="flex items-center gap-1 mt-1 text-[9px] text-slate-400">
-                    <span className="truncate">{scene.characters_present_names?.join(', ') || 'Ren'}</span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -787,15 +1212,25 @@ export const TimelineCompilerTab: React.FC<TimelineCompilerTabProps> = ({
             </div>
             
             <div className="flex items-center gap-2 min-w-[700px]">
-              {scenes.map((scene) => (
-                <div
-                  key={scene.id}
-                  className="flex-1 bg-emerald-950/40 border border-emerald-500/30 p-2 rounded-lg text-[10px] font-mono text-emerald-300 truncate"
-                  style={{ flexGrow: scene.duration_seconds }}
-                >
-                  {scene.dialogue?.[0]?.speaker ? `🎙️ ${scene.dialogue[0].speaker}` : 'Ambient'}
-                </div>
-              ))}
+              {scenes.map((scene) => {
+                const config = editConfigs[scene.id];
+                const activeDur = config?.durationOverride || scene.duration_seconds || 8;
+                const isSelected = selectedEditSceneId === scene.id;
+                return (
+                  <div
+                    key={scene.id}
+                    className={`flex-grow p-2 rounded-lg text-[10px] font-mono truncate transition-all cursor-pointer ${
+                      isSelected 
+                        ? 'bg-emerald-950/60 border border-emerald-400 text-emerald-300' 
+                        : 'bg-emerald-950/20 border border-emerald-900/30 hover:border-emerald-700 text-emerald-400/80'
+                    }`}
+                    style={{ flexGrow: activeDur, flexBasis: `${activeDur * 10}px` }}
+                    onClick={() => setSelectedEditSceneId(scene.id)}
+                  >
+                    {scene.dialogue?.[0]?.speaker ? `🎙️ ${scene.dialogue[0].speaker}` : 'Ambient'}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -806,7 +1241,7 @@ export const TimelineCompilerTab: React.FC<TimelineCompilerTabProps> = ({
               <span>Track 3: Master BGM ({bgmTrack})</span>
             </div>
             
-            <div className="w-full bg-purple-950/40 border border-purple-500/30 p-2 rounded-lg text-[10px] font-mono text-purple-300 flex items-center justify-between min-w-[700px]">
+            <div className="w-full bg-purple-950/20 border border-purple-900/30 p-2 rounded-lg text-[10px] font-mono text-purple-300 flex items-center justify-between min-w-[700px]">
               <span>🎵 Continuous Orchestral Mix (-18dB speech ducking active)</span>
               <span>Stereo 48kHz</span>
             </div>
@@ -820,15 +1255,25 @@ export const TimelineCompilerTab: React.FC<TimelineCompilerTabProps> = ({
             </div>
             
             <div className="flex items-center gap-2 min-w-[700px]">
-              {scenes.map((scene) => (
-                <div
-                  key={scene.id}
-                  className="flex-1 bg-yellow-950/30 border border-yellow-500/30 p-1.5 rounded text-[10px] font-sans text-yellow-300/90 truncate"
-                  style={{ flexGrow: scene.duration_seconds }}
-                >
-                  {scene.dialogue?.[0]?.line || '...'}
-                </div>
-              ))}
+              {scenes.map((scene) => {
+                const config = editConfigs[scene.id];
+                const activeDur = config?.durationOverride || scene.duration_seconds || 8;
+                const isSelected = selectedEditSceneId === scene.id;
+                return (
+                  <div
+                    key={scene.id}
+                    className={`flex-grow p-1.5 rounded text-[10px] font-sans truncate transition-all cursor-pointer ${
+                      isSelected 
+                        ? 'bg-yellow-950/60 border border-yellow-400 text-yellow-300' 
+                        : 'bg-yellow-950/10 border border-yellow-900/20 hover:border-yellow-700 text-yellow-400/80'
+                    }`}
+                    style={{ flexGrow: activeDur, flexBasis: `${activeDur * 10}px` }}
+                    onClick={() => setSelectedEditSceneId(scene.id)}
+                  >
+                    {scene.dialogue?.[0]?.line || '...'}
+                  </div>
+                );
+              })}
             </div>
           </div>
 

@@ -1,9 +1,13 @@
-export type ProjectRoute = 'FULL_EPISODE' | 'SHORT_FORM';
+export type ProjectRoute = 'FULL_EPISODE' | 'SHORT_FORM' | 'MANGA_STUDIO' | 'MANGA_SINGLE_PAGE' | 'MANGA_CHAPTER' | 'MANGA_VOLUME';
+
+export type SubscriptionTier = 'FREE' | 'STARTER' | 'PRO' | 'ENTERPRISE';
 
 export interface User {
   id: string;
   email: string;
   wallet_balance: number; // Strictly >= 0.00
+  subscription_tier?: SubscriptionTier;
+  subscription_status?: 'ACTIVE' | 'INACTIVE';
   created_at: string;
 }
 
@@ -80,6 +84,8 @@ export interface Character {
   turnaround_url?: string;
   turnaround_angles?: CharacterTurnaroundAngles;
   outfit_palette?: string[];
+  is_enhanced?: boolean;
+  enhanced_at?: string;
   created_at: string;
 }
 
@@ -88,9 +94,11 @@ export interface Environment {
   series_id: string;
   location_name: string;
   style_descriptor: string;
-  master_keyframe_url: string; // Static 4K HunyuanImage output
+  master_keyframe_url: string; // Static 4K Qwen 2.5-VL output
   camera_angles?: string[];
   lighting_time?: string;
+  is_enhanced?: boolean;
+  enhanced_at?: string;
   created_at: string;
 }
 
