@@ -20,7 +20,9 @@ const PORT = 3000;
 app.use(express.json({ limit: '50mb' }));
 
 // Set up public static route for horizontal composite turnaround sheets
-const tempUploadsDir = path.join(process.cwd(), 'temp-uploads');
+const tempUploadsDir = process.env.VERCEL 
+  ? '/tmp' 
+  : path.join(process.cwd(), 'temp-uploads');
 if (!fs.existsSync(tempUploadsDir)) {
   fs.mkdirSync(tempUploadsDir, { recursive: true });
 }
@@ -2961,7 +2963,7 @@ async function uploadStitchedImage(buffer: Buffer, req: any): Promise<string> {
   }
 
   // Fallback to local file serving
-  const tempDir = path.join(process.cwd(), 'temp-uploads');
+  const tempDir = tempUploadsDir;
   if (!fs.existsSync(tempDir)) {
     fs.mkdirSync(tempDir, { recursive: true });
   }
