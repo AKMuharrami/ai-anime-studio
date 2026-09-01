@@ -114,7 +114,7 @@ export const MangaStudioHomePage: React.FC<MangaStudioHomePageProps> = ({
           
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-950/90 border border-amber-900/20 text-xs text-amber-200 font-mono shadow-inner">
             <span className="flex h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
-            <span>SiliconFlow Prepaid Endpoint • Qwen-Image-Edit Turnarounds • Decoupled Multi-Reference Architecture</span>
+            <span>AI Manga Studio Pro Engine • Ultra-Consistent Character Turnarounds • Decoupled Multi-Reference Architecture</span>
           </div>
 
           <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight text-white font-['Cinzel',serif] leading-tight">

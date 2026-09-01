@@ -39,6 +39,8 @@ const APIFRAME_API_KEY = process.env.APIFRAME_API_KEY || "afk_45cc52cbe89928fc4a
 const FISH_AUDIO_API_KEY = process.env.FISH_AUDIO_API_KEY || "sk-fish-FI2uV1fUvTcn6B-6eRHDO-U8FXIkbwOn84bMa2cqKXo";
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || "sk-1b6614e5512e48289b6ac7320f8c35b1";
 const DATABASE_URL = process.env.DATABASE_URL || "postgres://default:n8QVwFCmjW3Y@ep-ancient-dust-a1d0xkns-pooler.ap-southeast-1.aws.neon.tech/verceldb?sslmode=require";
+const PAYPAL_CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET || "EHu14jqEff1i0vI3SWi_Ay6zPpr5d6dG43RsH8YjN6F2JW4XinWRQIj1djSU4DbWSTVWOy8cji7sVxMj";
+
 
 // Hostinger VPS Dedicated High-Speed NVMe Storage (Replaces AWS S3)
 const HOSTINGER_VPS_IP = process.env.HOSTINGER_VPS_IP || "187.127.114.102";

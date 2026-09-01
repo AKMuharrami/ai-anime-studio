@@ -256,7 +256,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* In Studio View: Interactive 4-Step Pipeline Wizard Bar */}
-        {currentView === 'studio' && (
+        {currentView === 'studio' && !activeEpisode?.route?.startsWith('MANGA_') && (
           <div className="flex items-center justify-between border-t border-slate-800/80 pt-2 pb-2.5 overflow-x-auto no-scrollbar gap-2">
             
             <div className="flex items-center space-x-1 sm:space-x-2">

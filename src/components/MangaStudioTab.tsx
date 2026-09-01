@@ -2490,7 +2490,7 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
                 <div className="flex items-center gap-2">
                   <ImageIcon className="h-4 w-4 text-rose-400" />
                   <h3 className="font-bold text-slate-100 text-sm font-['Cinzel',serif]">
-                    Step 3: SiliconFlow Panel Composition
+                    Step 3: Qwen Panel Composition
                   </h3>
                 </div>
                 <span className="text-[10px] text-rose-400 font-mono font-bold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
@@ -2500,7 +2500,7 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
 
               <div className="space-y-4">
                 <p className="text-xs text-slate-300 leading-relaxed">
-                  Sends the pre-saved background layout and the immutable character turnaround sheet to SiliconFlow's <span className="text-rose-300 font-bold">Qwen-Image-Edit</span>. Qwen incorporates the character perfectly while safeguarding facial features and room aesthetics.
+                  Sends the pre-saved background layout and the immutable character turnaround sheet to the <span className="text-rose-300 font-bold">AI Manga Studio Engine</span>. The engine incorporates the character perfectly while safeguarding facial features and room aesthetics.
                 </p>
 
                 {/* Dynamic Configuration form */}
