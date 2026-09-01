@@ -1734,24 +1734,69 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
   };
 
   // Render SVG speech bubbles on top of the image to look like a real manga page
-  const renderSpeechBubbleSVG = (panel: MangaPanel) => {
-    const textLines = panel.speechText.match(/.{1,18}(\s|$)/g) || [panel.speechText];
-    const maxLineLen = Math.max(...textLines.map(l => l.length));
-    const bubbleWidth = maxLineLen * 7.5 + 40;
-    const bubbleHeight = textLines.length * 15 + 40;
+  const renderSpeechBubbleSVG = (panel: MangaPanel, pagePanelsCount = 3) => {
+    const text = panel.speechText?.trim() || "";
+    
+    // Smart filter to identify if there is genuinely dialogue or not.
+    // Standard placeholders like "Dialogue goes here..." or "(No Speech)" should be ignored.
+    const isPlaceholder = !text || 
+                          text.toLowerCase() === "dialogue goes here..." || 
+                          text.toLowerCase() === "dialogue goes here" ||
+                          text.toLowerCase() === "(dialogue)" ||
+                          text.toLowerCase() === "dialogue" ||
+                          text.toLowerCase() === "(no speech)" ||
+                          text.toLowerCase() === "(silence)" ||
+                          text.toLowerCase() === "silence" ||
+                          text === "...";
 
-    const pathD = () => {
-      if (panel.bubbleStyle === 'burst') {
-        // Starburst path for intense action
-        return `M 0,0 L 15,-5 L 25,-15 L 45,-10 L 60,-25 L 85,-15 L 105,-20 L 115,-5 L 135,0 L 125,15 L 140,25 L 120,35 L 130,55 L 110,50 L 95,65 L 80,50 L 60,60 L 50,45 L 30,50 L 20,35 L -5,30 L 5,15 Z`;
-      } else if (panel.bubbleStyle === 'thought') {
-        // Thought bubble clouds
-        return `M 10,15 A 12,12 0 0,1 30,10 A 15,15 0 0,1 60,8 A 12,12 0 0,1 80,12 A 12,12 0 0,1 90,25 A 10,10 0 0,1 85,40 A 15,15 0 0,1 65,45 A 12,12 0 0,1 35,46 A 12,12 0 0,1 15,40 A 10,10 0 0,1 10,25 Z`;
-      } else {
-        // Oval bubble with tail
-        return `M 10,15 C 10,5 30,5 50,5 C 70,5 90,5 90,15 C 90,25 70,25 50,25 C 40,25 35,32 30,25 C 20,25 10,25 10,15 Z`;
+    if (isPlaceholder) {
+      return null;
+    }
+
+    // Dynamic scale factor based on number of panels on the page
+    // Less panels = larger images = larger bubble scale is fine
+    // More panels = smaller panel boxes = bubble scale MUST be smaller to prevent obscuring the panel art
+    let baseScale = panel.bubbleScale || 1.0;
+    
+    if (pagePanelsCount >= 4) {
+      baseScale *= 0.65; // Highly scaled down for 4+ panels to fit beautifully
+    } else if (pagePanelsCount === 3) {
+      baseScale *= 0.75; // Scaled down for 3 panels to look perfectly balanced
+    } else if (pagePanelsCount === 2) {
+      baseScale *= 0.85; // Slightly scaled down for 2 panels
+    } else {
+      baseScale *= 0.95; // 1 panel splash
+    }
+
+    // Further auto-adjust scale based on text length:
+    // If the text is extremely short (e.g., 1-5 chars), scale it down slightly so the bubble doesn't look bloated
+    if (text.length <= 5) {
+      baseScale *= 0.85;
+    } else if (text.length > 50) {
+      // If the text is exceptionally long, keep it slightly smaller so it doesn't cover everything
+      baseScale *= 0.92;
+    }
+
+    // Helper to wrap text cleanly around word boundaries
+    const wrapText = (str: string, limit: number): string[] => {
+      const words = str.split(/\s+/);
+      const lines: string[] = [];
+      let currentLine = "";
+      for (const word of words) {
+        if ((currentLine + " " + word).trim().length <= limit) {
+          currentLine = (currentLine + " " + word).trim();
+        } else {
+          if (currentLine) lines.push(currentLine);
+          currentLine = word;
+        }
       }
+      if (currentLine) lines.push(currentLine);
+      return lines.length > 0 ? lines : [str];
     };
+
+    const wrapLimit = text.length <= 10 ? 8 : (text.length <= 25 ? 12 : 16);
+    const textLines = wrapText(text, wrapLimit);
+    const isShort = text.length <= 8;
 
     return (
       <div 
@@ -1759,16 +1804,27 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
         style={{
           left: `${panel.bubbleX}%`,
           top: `${panel.bubbleY}%`,
-          transform: `translate(-50%, -50%) scale(${panel.bubbleScale})`,
-          maxWidth: '180px',
+          transform: `translate(-50%, -50%) scale(${baseScale})`,
+          maxWidth: isShort ? '110px' : '170px',
         }}
       >
-        <div className="relative bg-white text-black text-[9px] md:text-xs font-bold leading-tight border-2 border-black rounded-full px-3 py-2 text-center select-none font-sans max-w-[150px] shadow-sm">
-          {panel.speechText}
+        <div 
+          className="relative bg-white text-black font-extrabold leading-tight border-2 border-black rounded-full text-center select-none font-sans shadow-md flex flex-col items-center justify-center"
+          style={{
+            padding: isShort ? '6px 12px' : '10px 16px',
+            fontSize: isShort ? '9px' : '11px',
+            lineHeight: '1.25',
+            width: 'max-content',
+            minWidth: isShort ? '40px' : '65px',
+          }}
+        >
+          {textLines.map((line, i) => (
+            <div key={i} className="whitespace-nowrap">{line}</div>
+          ))}
           
           {/* Bubble Tail */}
           {panel.bubbleStyle === 'oval' && (
-            <div className="absolute bottom-[-8px] left-[35%] w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[8px] border-t-white before:absolute before:bottom-[1px] before:left-[-8px] before:w-0 before:before:h-0 before:border-l-[8px] before:border-l-transparent before:border-r-[8px] before:border-r-transparent before:border-t-[8px] before:border-t-black before:z-[-1]"></div>
+            <div className="absolute bottom-[-8px] left-[35%] w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[8px] border-t-white before:absolute before:bottom-[1px] before:left-[-8px] before:w-0 before:h-0 before:border-l-[8px] before:border-l-transparent before:border-r-[8px] before:border-r-transparent before:border-t-[8px] before:border-t-black before:z-[-1]"></div>
           )}
           {panel.bubbleStyle === 'burst' && (
             <div className="absolute -inset-1 border-2 border-dashed border-red-500 rounded-full pointer-events-none opacity-40"></div>
@@ -2236,7 +2292,7 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
                           </div>
 
                           {/* Render Speech bubble Overlay */}
-                          {renderSpeechBubbleSVG(panel)}
+                          {renderSpeechBubbleSVG(panel, panels.length)}
 
                           {/* Selected Panel Accent */}
                           {isSelected && (
