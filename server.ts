@@ -439,6 +439,51 @@ app.get("/api/db/status", async (req, res) => {
   }
 });
 
+app.post("/api/db/transfer-users", async (req, res) => {
+  try {
+    const { sourceTable = 'users', targetTable = process.env.USERS_TABLE_NAME || 'users' } = req.body;
+    const pool = getDbPool();
+    
+    const checkSource = await pool.query(`SELECT to_regclass($1);`, [sourceTable]);
+    if (!checkSource.rows[0].to_regclass) {
+      return res.status(400).json({ success: false, error: `Source table "${sourceTable}" does not exist.` });
+    }
+
+    const createTargetDdl = `
+      CREATE TABLE IF NOT EXISTS ${targetTable} (
+          id VARCHAR(64) PRIMARY KEY,
+          email VARCHAR(255) UNIQUE NOT NULL,
+          password_hash TEXT,
+          is_verified BOOLEAN DEFAULT FALSE,
+          wallet_balance DECIMAL(10, 2) NOT NULL DEFAULT 100.00 CHECK (wallet_balance >= 0.00),
+          subscription_tier VARCHAR(64) DEFAULT 'FREE',
+          subscription_status VARCHAR(64) DEFAULT 'INACTIVE',
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+    await pool.query(createTargetDdl);
+
+    const transferQuery = `
+      INSERT INTO ${targetTable} (id, email, password_hash, is_verified, wallet_balance, subscription_tier, subscription_status, created_at)
+      SELECT id, email, password_hash, is_verified, wallet_balance, subscription_tier, subscription_status, created_at
+      FROM ${sourceTable}
+      ON CONFLICT (email) DO UPDATE SET
+        wallet_balance = EXCLUDED.wallet_balance,
+        password_hash = COALESCE(EXCLUDED.password_hash, ${targetTable}.password_hash);
+    `;
+    const result = await pool.query(transferQuery);
+
+    res.json({
+      success: true,
+      message: `Successfully transferred user records from "${sourceTable}" to "${targetTable}".`,
+      rows_affected: result.rowCount
+    });
+  } catch (err: any) {
+    console.error("Transfer Users Error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Initialize Schema & Tables on Neon Postgres
 app.post("/api/db/init-schema", async (req, res) => {
   try {

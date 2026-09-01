@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Mail, Lock, KeyRound, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Mail, Lock, KeyRound, ArrowRight, ShieldCheck, FileText, CheckCircle2 } from 'lucide-react';
 
 interface AuthScreenProps {
   onLoginSuccess: (token: string, user: any) => void;
@@ -11,12 +11,19 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onClose 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!agreedToTerms) {
+      setError("You must agree to the Terms of Service & Shariah Compliance Policy to register.");
+      return;
+    }
     setLoading(true);
     setError(null);
     setMessage(null);
@@ -118,7 +125,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onClose 
             {mode === 'login' 
               ? 'Enter your credentials to access the studio.' 
               : mode === 'register' 
-              ? 'Join the worldwide anime & manga creator community.' 
+              ? 'Join the worldwide anime & manga creator community with Shariah-compliant standards.' 
               : 'Enter the 6-digit OTP sent to your email.'}
           </p>
         </div>
@@ -198,6 +205,22 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onClose 
               </div>
             </div>
 
+            {mode === 'register' && (
+              <div className="flex items-start gap-3 pt-2">
+                <input 
+                  type="checkbox" 
+                  id="terms" 
+                  checked={agreedToTerms} 
+                  onChange={(e) => setAgreedToTerms(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-slate-700 bg-slate-950 text-rose-600 focus:ring-rose-500 cursor-pointer" 
+                  required
+                />
+                <label htmlFor="terms" className="text-xs text-slate-400 leading-relaxed">
+                  I agree to the <button type="button" onClick={() => setShowTermsModal(true)} className="text-rose-400 hover:underline font-semibold">Terms of Service & Content Policy</button> governing content moderation.
+                </label>
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={loading}
@@ -220,6 +243,95 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onClose 
           </button>
         </div>
       </div>
+
+      {/* TERMS OF SERVICE & POLICY MODAL */}
+      {showTermsModal && (
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 sm:p-8 overflow-hidden backdrop-blur-md">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-2xl h-[85vh] flex flex-col shadow-2xl relative overflow-hidden animate-fadeIn">
+            <div className="flex items-center justify-between p-6 border-b border-slate-800 bg-slate-900/90">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 bg-rose-500/20 rounded-xl flex items-center justify-center text-rose-400 border border-rose-500/30">
+                  <FileText className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white font-['Cinzel',serif]">Terms of Service & Content Policy</h2>
+                  <p className="text-xs text-slate-400">Effective Date: 2026 • Creator Community Guidelines & Pricing</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowTermsModal(false)}
+                className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                Close Agreement
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6 space-y-6 text-sm text-slate-300 leading-relaxed bg-slate-950 font-sans">
+              <div className="space-y-3">
+                <h3 className="text-base font-bold text-rose-400 font-mono uppercase tracking-wider">1. Acceptance of Terms</h3>
+                <p>
+                  By creating an account and accessing this Studio platform, you agree to be bound by these Terms of Service, our privacy policies, and our strict Content & Modesty Guidelines.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="text-base font-bold text-rose-400 font-mono uppercase tracking-wider">2. Modesty & Content Guidelines</h3>
+                <p>
+                  Our platform is dedicated to wholesome, high-craft storytelling, cinematic anime, and authentic Gekiga manga. To maintain a respectful creative environment, the following standards are strictly enforced:
+                </p>
+                <ul className="list-disc pl-5 space-y-2 text-slate-300">
+                  <li><strong className="text-white">Prohibited Immodesty (Degenerate Content):</strong> Any attempt to generate nakedness, exposed breasts, cleavage, toplessness, explicit sexualization, form-fitting/tight clothing designed for allure, loli/lolicon, or provocative/seductive positioning is strictly prohibited.</li>
+                  <li><strong className="text-white">Allowed Dramatic Conflict:</strong> Narrative elements such as combat, dramatic violence, killing, blood, and traditional storytelling conflict are fully permitted as part of character arcs and plot progression. Furthermore, vice depictions such as villainous gambling, tavern drinking, or antagonist corruption are permitted for storytelling depth and cannot be used as false censorship triggers.</li>
+                </ul>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="text-base font-bold text-rose-400 font-mono uppercase tracking-wider">3. Fees, Subscriptions & Generation Credits</h3>
+                <p>
+                  Platform access and AI generation workloads operate on a credit and subscription model:
+                </p>
+                <ul className="list-disc pl-5 space-y-2 text-slate-300">
+                  <li><strong className="text-white">Subscription Tiers:</strong> Monthly and annual creator plans grant recurring generation credits for scripts, voiceovers, character turnaround sheets, and manga panels.</li>
+                  <li><strong className="text-white">Credit Top-Ups:</strong> Additional generation credits can be purchased on-demand via secure checkout. Unused credits roll over according to active subscription terms.</li>
+                  <li><strong className="text-white">Refund Policy:</strong> All subscription fees and credit token purchases are final and non-refundable once credited or consumed in generation pipelines.</li>
+                </ul>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="text-base font-bold text-rose-400 font-mono uppercase tracking-wider">4. Three-Strike Warning & Permanent Ban System</h3>
+                <p>
+                  The platform utilizes an automated Content Compliance Guard that scans prompts before rendering. 
+                </p>
+                <ul className="list-disc pl-5 space-y-2 text-slate-300">
+                  <li><strong className="text-yellow-400">First & Second Offense:</strong> The prompt is immediately cancelled, and an official warning notice is issued detailing the violation.</li>
+                  <li><strong className="text-red-400">Third Offense (Permanent Ban):</strong> Upon recording three (3) policy violations, the account is permanently suspended and banned from accessing studio services or vaults.</li>
+                </ul>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="text-base font-bold text-rose-400 font-mono uppercase tracking-wider">5. User Vaults & Intellectual Property</h3>
+                <p>
+                  Users retain intellectual property rights over their generated screenplays, story arcs, character designs, and manga panels stored within their personal database vaults. The platform provides secure cloud archiving and retrieval across active projects.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-800 bg-slate-900/90 flex items-center justify-between">
+              <span className="text-xs text-slate-400">Review carefully before accepting.</span>
+              <button
+                onClick={() => {
+                  setAgreedToTerms(true);
+                  setShowTermsModal(false);
+                }}
+                className="px-6 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-md shadow-rose-600/30"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                <span>I Agree to Terms</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
