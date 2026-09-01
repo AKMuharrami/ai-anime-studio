@@ -35,7 +35,7 @@ import {
   Cloud,
   Upload
 } from 'lucide-react';
-import html2canvas from 'html2canvas';
+import html2canvas from 'html2canvas-pro';
 import JSZip from 'jszip';
 import { Scene, Character, Environment, Episode, Series } from '../types';
 
@@ -2112,20 +2112,6 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
             </div>
 
             {/* SAVING & FINALIZATION REMINDER BANNER */}
-            <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex items-start gap-3.5 shadow-md">
-              <div className="h-9 w-9 shrink-0 bg-amber-500/20 border border-amber-500/30 rounded-xl flex items-center justify-center text-amber-400">
-                <AlertCircle className="h-5 w-5 animate-pulse" />
-              </div>
-              <div className="flex-1">
-                <h4 className="text-sm font-bold text-amber-200 flex items-center gap-2">
-                  <span>Finalization & Save Notice</span>
-                  <span className="text-[10px] bg-amber-500/20 px-2 py-0.5 rounded-md font-mono font-bold tracking-wider text-amber-400 border border-amber-500/30">Action Required</span>
-                </h4>
-                <p className="text-xs text-slate-300 mt-1 leading-relaxed">
-                  ⚠️ Remember to <strong>Save and Finalize</strong> your page! After positioning your dialogue speech bubbles, tweaking visual panels, or adjusting page content, you <strong>MUST</strong> click <span className="text-amber-400 font-semibold underline cursor-pointer hover:text-amber-300" onClick={handleAssemblePage}>"Assemble Live Page"</span>. This renders, compiles, and locks your work securely into your <strong>Vercel Neon PostgreSQL Database & Vercel Blob Cloud Storage</strong> permanently.
-                </p>
-              </div>
-            </div>
 
             {/* LIVE WORKSPACE PRODUCTION ACTION BAR */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-3 shadow-lg">
@@ -3578,45 +3564,56 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
             </div>
           )}
 
-          {/* PYTHON ORCHESTRATION PAYLOAD EXPANSION CARD */}
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
-            <div className="flex items-center gap-2">
-              <Code2 className="h-4 w-4 text-amber-400" />
-              <h4 className="font-bold text-slate-100 text-xs font-['Cinzel',serif] tracking-tight">
-                Manga Panel Generation worker code (manga_tasks.py)
-              </h4>
+          {/* FINALIZATION & SAVE NOTICE CARD */}
+          <div className="bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-5 animate-fadeIn">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-amber-400" />
+                <h4 className="font-bold text-slate-100 text-xs font-['Cinzel',serif] tracking-tight">
+                  Finalization & Save Center
+                </h4>
+              </div>
+              <span className="text-[9px] bg-amber-500/15 px-2.5 py-1 rounded-full font-mono font-bold tracking-wider text-amber-400 border border-amber-500/25">
+                ACTION REQUIRED
+              </span>
             </div>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Copy this production-grade Celery background worker task blueprint to deploy directly on your Hostinger VPS server environment.
+
+            <p className="text-xs text-slate-300 leading-relaxed">
+              After positioning dialogue speech bubbles, generating panels, or adjusting page content, you <strong>MUST</strong> click <strong>Assemble Live Page</strong>. This compiles vector overlays and secures your pages permanently into the <strong>PostgreSQL Database & Cloud Storage</strong>.
             </p>
-            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 max-h-[140px] overflow-y-auto font-mono text-[10px] text-amber-200/80 leading-relaxed">
-              <pre>{`import os
-import requests
-from celery import Celery
-from PIL import Image, ImageDraw, ImageFont
 
-celery_app = Celery("manga_tasks", broker=os.getenv("RABBITMQ_URL"))
+            {/* INTEGRATED DIRECT ACTION BUTTON */}
+            <div className="pt-1">
+              <button
+                onClick={handleAssemblePage}
+                disabled={isAssemblingPage}
+                className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-rose-600 via-rose-500 to-amber-500 hover:from-rose-500 hover:via-rose-400 hover:to-amber-400 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold transition-all shadow-lg shadow-rose-600/10 flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+              >
+                {isAssemblingPage ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    <span>Compiling Live Canvas...</span>
+                  </>
+                ) : (
+                  <>
+                    <Printer className="h-4 w-4" />
+                    <span>Assemble & Save Live Page</span>
+                  </>
+                )}
+              </button>
+            </div>
 
-@celery_app.task
-def generate_manga_panel(panel_prompt, char_sheet, bg_layout, speech_text, output_path):
-    headers = {"Authorization": f"Bearer {os.getenv('SILICONFLOW_API_KEY')}"}
-    # 1. Dispatch multi-reference payload
-    payload = {
-        "model": "Qwen/Qwen-Image-Edit",
-        "prompt": f"Black and white manga illustration, Gekiga screentone. {panel_prompt}",
-        "image": bg_layout,
-        "reference_image": char_sheet,
-        "num_inference_steps": 25
-    }
-    res = requests.post("https://api.siliconflow.cn/v1/image/edit", json=payload, headers=headers).json()
-    img_data = requests.get(res['images'][0]['url']).content
-    
-    # 2. Vector Speech Bubble Overlay
-    img = Image.open(BytesIO(img_data))
-    draw = ImageDraw.Draw(img)
-    draw.ellipse([50, 50, 350, 180], fill="white", outline="black", width=3)
-    draw.text((80, 90), speech_text, fill="black")
-    img.save(output_path)`}</pre>
+            {/* BEAUTIFULLY STYLED MODEL CONSISTENCY DISCLAIMER */}
+            <div className="bg-slate-950/60 rounded-2xl p-4 border border-slate-800/80 space-y-2">
+              <div className="flex items-center gap-2">
+                <Wand2 className="h-3.5 w-3.5 text-rose-400" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-rose-300 font-mono">
+                  Model Consistency Terms
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Character and stylistic continuity is highly likely through our custom multi-angle turnaround engine. However, perfect consistency is not always guaranteed on every render. Depending on complex scene choreography, additional generation runs or minor prompt adjustments may sometimes be required to match your exact vision.
+              </p>
             </div>
           </div>
 

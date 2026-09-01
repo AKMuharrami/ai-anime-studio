@@ -1677,7 +1677,8 @@ Rules:
 - Grid: Assume a 12-column grid.
 - Bubble Style: Choose from 'oval', 'burst', 'thought', 'whisper'.
 - Characters: Limit 'charactersPresent' to AT MOST 2 or 3 primary focal characters per panel. Do NOT include more than 3 characters in 'charactersPresent'. Describe extra crowd/passersby in actionPrompt as "unfocused background silhouettes".
-- Action Prompts: Focus purely on poses, actions, spatial positioning (e.g. '[Left Stage: Char A] [Right Stage: Char B]'), and camera angles. DO NOT write age numbers (e.g., '18-year-old', 'aged 30') or general physical facial descriptions in actionPrompt as these clash with character model sheets.
+- Action Prompts: Focus purely on poses, actions, spatial positioning (e.g. '[Left Stage: Char A] [Right Stage: Char B]'), and camera angles. DO NOT write age numbers (e.g., '18-year-old', 'aged 30') or general physical facial descriptions in actionPrompt as these clash with character model sheets. CRITICAL CHARACTER CONSISTENCY: Do NOT invent, introduce, or describe any extra accessories, weapons, armor pieces, clothing items, cloaks, masks, or visual attachments that do not exist in the character's base reference or turnaround sheet, nor should they fluctuate across panels.
+- Equipment: Leave this completely empty or set to "standard" to defer fully to the character's core turnaround model sheets. Do NOT invent new weapons or gear that are absent from the character reference sheet.
 - Output strictly valid JSON matching this schema:
 {
   "pages": [

@@ -217,7 +217,7 @@ export const StudioDesignVaultTab: React.FC<StudioDesignVaultTabProps> = ({
   const [isEnhancingPrompt, setIsEnhancingPrompt] = useState(false);
   const [regeneratingAngleKey, setRegeneratingAngleKey] = useState<string | null>(null);
   const [newCharName, setNewCharName] = useState('Commander Tariq Al-Mansoor');
-  const [newCharDescriptor, setNewCharDescriptor] = useState('32-year-old male tactical commander in Ufotable anime style, slicked-back dark silver hair, intense amber eyes, dark obsidian combat armor with gold trim, flowing armored cloak, noble commanding aura, modest dignified attire.');
+  const [newCharDescriptor, setNewCharDescriptor] = useState('32-year-old male tactical commander in Ufotable anime style, slicked-back dark silver hair, intense amber eyes, dark obsidian combat armor with gold trim, structured tactical armor jacket, noble commanding aura, modest dignified attire.');
   const [newCharVoice, setNewCharVoice] = useState('FISH_VOICE_JP_MALE_TACTICAL_COMMANDER_02');
 
   const charArchetypes = [
@@ -225,7 +225,7 @@ export const StudioDesignVaultTab: React.FC<StudioDesignVaultTabProps> = ({
       role: 'Tactical Commander',
       name: 'Commander Tariq Al-Mansoor',
       voice: 'FISH_VOICE_JP_MALE_TACTICAL_COMMANDER_02',
-      prompt: '32-year-old male tactical commander in Ufotable anime style, slicked-back dark silver hair, intense amber eyes, dark obsidian combat armor with gold trim, flowing armored cloak, noble commanding aura, modest dignified attire.'
+      prompt: '32-year-old male tactical commander in Ufotable anime style, slicked-back dark silver hair, intense amber eyes, dark obsidian combat armor with gold trim, structured tactical armor jacket, noble commanding aura, modest dignified attire.'
     },
     {
       role: 'Lead Detective',

@@ -146,7 +146,7 @@ export const ScriptTimelineParserTab: React.FC<ScriptTimelineParserTabProps> = (
           scene_index: 2,
           location_name: 'Historical Repository Mainframe',
           characters_present: ['Tariq', 'Zayd'],
-          action_prompt: 'Tariq enters the repository. Zayd turns, adjusting his modest armored cloak, organizing the illuminated data scrolls.',
+          action_prompt: 'Tariq enters the repository. Zayd turns, adjusting his modest tactical jacket, organizing the illuminated data scrolls.',
           camera_action: 'Dual medium over-the-shoulder cuts, whipping 180-degree camera arc',
           estimated_duration: isFull ? 50 : 10,
           dialogue: [
