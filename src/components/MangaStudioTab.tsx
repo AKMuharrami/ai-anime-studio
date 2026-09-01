@@ -323,7 +323,7 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
   };
 
   const [mangaPageFooterText, setMangaPageFooterText] = useState(
-    `- PAGE 01 / 01 (MODESTY GUIDELINES NEURAL MANGA) -`
+    `- MANGA DRAFT • PAGE 01 -`
   );
   const [isEditingFooter, setIsEditingFooter] = useState(false);
 
@@ -1759,80 +1759,136 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
     let baseScale = panel.bubbleScale || 1.0;
     
     if (pagePanelsCount >= 4) {
-      baseScale *= 0.65; // Highly scaled down for 4+ panels to fit beautifully
+      baseScale *= 0.82; // Balanced scale to fit neatly in tight grid squares
     } else if (pagePanelsCount === 3) {
-      baseScale *= 0.75; // Scaled down for 3 panels to look perfectly balanced
+      baseScale *= 0.88; // Perfectly scaled for 3-panel configurations
     } else if (pagePanelsCount === 2) {
-      baseScale *= 0.85; // Slightly scaled down for 2 panels
+      baseScale *= 0.94; // Optimized for 2-panel configuration
     } else {
-      baseScale *= 0.95; // 1 panel splash
+      baseScale *= 1.0; // 1-panel full-page splash
     }
 
-    // Further auto-adjust scale based on text length:
-    // If the text is extremely short (e.g., 1-5 chars), scale it down slightly so the bubble doesn't look bloated
-    if (text.length <= 5) {
-      baseScale *= 0.85;
-    } else if (text.length > 50) {
-      // If the text is exceptionally long, keep it slightly smaller so it doesn't cover everything
-      baseScale *= 0.92;
-    }
+    // Proportional scale floor to guarantee ultimate legibility and stop microscopic text sizes
+    baseScale = Math.max(0.85, baseScale);
 
-    // Helper to wrap text cleanly around word boundaries
-    const wrapText = (str: string, limit: number): string[] => {
+    // Professional oval-shaping wrapping algorithm
+    // Stacks words beautifully in a diamond/oval shape to conform perfectly to Gekiga comic margins
+    const getOvalBalancedLines = (str: string): string[] => {
       const words = str.split(/\s+/);
-      const lines: string[] = [];
-      let currentLine = "";
-      for (const word of words) {
-        if ((currentLine + " " + word).trim().length <= limit) {
-          currentLine = (currentLine + " " + word).trim();
-        } else {
-          if (currentLine) lines.push(currentLine);
-          currentLine = word;
+      if (words.length <= 1) return [str];
+      if (words.length === 2) return [words[0], words[1]];
+      
+      const totalChars = str.length;
+      let targetLines = 2;
+      if (totalChars <= 12) targetLines = 1;
+      else if (totalChars <= 28) targetLines = 2;
+      else if (totalChars <= 55) targetLines = 3;
+      else targetLines = 4;
+      
+      const lines: string[][] = Array.from({ length: targetLines }, () => []);
+      const avgCharsPerLine = totalChars / targetLines;
+      
+      const getLineWeight = (idx: number, total: number) => {
+        if (total <= 2) return 1.0;
+        const mid = (total - 1) / 2;
+        const distFromMid = Math.abs(idx - mid);
+        return 1.3 - (distFromMid * 0.35); // wider at the middle, narrower at the edges
+      };
+      
+      let wordIdx = 0;
+      for (let l = 0; l < targetLines; l++) {
+        const weight = getLineWeight(l, targetLines);
+        const targetLen = avgCharsPerLine * weight;
+        let currentLen = 0;
+        
+        while (wordIdx < words.length) {
+          const nextWord = words[wordIdx];
+          const addedLen = nextWord.length + (currentLen > 0 ? 1 : 0);
+          
+          if (currentLen === 0 || (currentLen + addedLen <= targetLen + 4) || l === targetLines - 1) {
+            lines[l].push(nextWord);
+            currentLen += addedLen;
+            wordIdx++;
+          } else {
+            break;
+          }
         }
       }
-      if (currentLine) lines.push(currentLine);
-      return lines.length > 0 ? lines : [str];
+      return lines.map(lineWords => lineWords.join(" ")).filter(Boolean);
     };
 
-    const wrapLimit = text.length <= 10 ? 8 : (text.length <= 25 ? 12 : 16);
-    const textLines = wrapText(text, wrapLimit);
-    const isShort = text.length <= 8;
+    const textLines = getOvalBalancedLines(text);
+    const isShort = text.length <= 10;
+    const isSingleLine = textLines.length === 1;
 
     return (
       <div 
-        className="absolute pointer-events-none select-none drop-shadow-lg"
+        className="absolute pointer-events-none select-none z-30 drop-shadow-md animate-fadeIn"
         style={{
           left: `${panel.bubbleX}%`,
           top: `${panel.bubbleY}%`,
           transform: `translate(-50%, -50%) scale(${baseScale})`,
-          maxWidth: isShort ? '110px' : '170px',
+          maxWidth: isShort ? '120px' : '185px',
         }}
       >
-        <div 
-          className="relative bg-white text-black font-extrabold leading-tight border-2 border-black rounded-full text-center select-none font-sans shadow-md flex flex-col items-center justify-center"
-          style={{
-            padding: isShort ? '6px 12px' : '10px 16px',
-            fontSize: isShort ? '9px' : '11px',
-            lineHeight: '1.25',
-            width: 'max-content',
-            minWidth: isShort ? '40px' : '65px',
-          }}
-        >
-          {textLines.map((line, i) => (
-            <div key={i} className="whitespace-nowrap">{line}</div>
-          ))}
-          
-          {/* Bubble Tail */}
-          {panel.bubbleStyle === 'oval' && (
-            <div className="absolute bottom-[-8px] left-[35%] w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[8px] border-t-white before:absolute before:bottom-[1px] before:left-[-8px] before:w-0 before:h-0 before:border-l-[8px] before:border-l-transparent before:border-r-[8px] before:border-r-transparent before:border-t-[8px] before:border-t-black before:z-[-1]"></div>
+        <div className="relative flex flex-col items-center justify-center">
+          {/* Main Bubble body */}
+          {panel.bubbleStyle === 'burst' ? (
+            // Aggressive, world-class starburst action bubble
+            <div 
+              className="bg-white text-black font-extrabold tracking-wide uppercase text-center flex flex-col items-center justify-center border-4 border-black relative shadow-lg"
+              style={{
+                clipPath: 'polygon(0% 15%, 15% 15%, 25% 0%, 35% 15%, 50% 5%, 65% 15%, 75% 0%, 85% 15%, 100% 15%, 90% 35%, 100% 50%, 90% 65%, 100% 80%, 85% 80%, 75% 100%, 65% 80%, 50% 95%, 35% 80%, 25% 100%, 15% 80%, 0% 80%, 10% 65%, 0% 50%, 10% 35%)',
+                padding: '20px 24px',
+                fontSize: '11.5px',
+                fontFamily: 'system-ui, -apple-system, sans-serif',
+                lineHeight: '1.25',
+                width: 'max-content',
+                minWidth: '95px',
+                minHeight: '70px',
+              }}
+            >
+              {textLines.map((line, i) => (
+                <div key={i} className="whitespace-nowrap font-black">{line}</div>
+              ))}
+            </div>
+          ) : (
+            // Classic professional rounded ellipse dialog
+            <div 
+              className={`bg-white text-black font-bold tracking-wide uppercase text-center flex flex-col items-center justify-center select-none shadow-md border-[3px] border-black ${
+                panel.bubbleStyle === 'whisper' 
+                  ? 'border-dashed border-slate-500 rounded-[50%/40%] text-slate-800' 
+                  : 'rounded-[50%/45%]'
+              }`}
+              style={{
+                padding: isShort 
+                  ? (isSingleLine ? '8px 16px' : '10px 18px') 
+                  : '14px 22px',
+                fontSize: isShort ? '11px' : '12px',
+                fontFamily: 'system-ui, -apple-system, sans-serif',
+                lineHeight: '1.25',
+                width: 'max-content',
+                minWidth: isShort ? '65px' : '110px',
+                minHeight: isShort ? '40px' : '60px',
+              }}
+            >
+              {textLines.map((line, i) => (
+                <div key={i} className="whitespace-nowrap">{line}</div>
+              ))}
+              
+              {/* Dialogue Bubble tail pointing down towards speaker */}
+              {panel.bubbleStyle === 'oval' && (
+                <div className="absolute bottom-[-10px] left-[35%] w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-t-[10px] border-t-white before:absolute before:bottom-[1px] before:left-[-10px] before:w-0 before:h-0 before:border-l-[10px] before:border-l-transparent before:border-r-[10px] before:border-r-transparent before:border-t-[10px] before:border-t-black before:z-[-1]"></div>
+              )}
+            </div>
           )}
-          {panel.bubbleStyle === 'burst' && (
-            <div className="absolute -inset-1 border-2 border-dashed border-red-500 rounded-full pointer-events-none opacity-40"></div>
-          )}
+
+          {/* Thought trail circles descending from the main bubble */}
           {panel.bubbleStyle === 'thought' && (
-            <div className="absolute bottom-[-14px] left-[45%] flex flex-col gap-1 items-center">
-              <div className="w-2.5 h-2.5 bg-white border border-black rounded-full"></div>
-              <div className="w-1.5 h-1.5 bg-white border border-black rounded-full"></div>
+            <div className="absolute bottom-[-16px] left-[45%] flex flex-col gap-1 items-center">
+              <div className="w-3.5 h-3.5 bg-white border-2 border-black rounded-full shadow-sm"></div>
+              <div className="w-2 h-2 bg-white border-2 border-black rounded-full shadow-sm"></div>
+              <div className="w-1 h-1 bg-white border border-black rounded-full shadow-sm"></div>
             </div>
           )}
         </div>
@@ -2202,7 +2258,7 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
             >
               
               {/* PAGE NUMBER ACCENT (EDITABLE & MOVED DOWN) */}
-              <div className="absolute bottom-1.5 left-1/2 transform -translate-x-1/2 text-[10px] font-black text-black font-mono tracking-widest uppercase z-20 flex items-center gap-1.5 group/footer">
+              <div className="absolute bottom-1.5 left-1/2 transform -translate-x-1/2 text-[10px] font-black text-black font-mono tracking-widest uppercase z-20 flex items-center gap-1.5 group/footer whitespace-nowrap">
                 {isEditingFooter ? (
                   <input
                     type="text"
