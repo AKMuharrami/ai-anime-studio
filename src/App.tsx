@@ -8,7 +8,7 @@ import { StudioDesignVaultTab } from './components/StudioDesignVaultTab';
 import { SeedanceMultimodalStudioTab } from './components/SeedanceMultimodalStudioTab';
 import { SoundVoiceStudioTab } from './components/SoundVoiceStudioTab';
 import { TimelineCompilerTab } from './components/TimelineCompilerTab';
-import { MangaStudioTab } from './components/MangaStudioTab';
+import { MangaStudioTab, DRAFT_EXAMPLE_CHAPTER_PAGES, MangaPageRecord } from './components/MangaStudioTab';
 import { MangaStudioHomePage } from './components/MangaStudioHomePage';
 import { DatabaseArchitectureModal } from './components/DatabaseArchitectureModal';
 import { PythonOrchestrationModal } from './components/PythonOrchestrationModal';
@@ -39,17 +39,108 @@ export default function App() {
     localStorage.setItem('ais_homepage_mode', homepageMode);
   }, [homepageMode]);
 
-  // Global State
-  const [user, setUser] = useState(INITIAL_USER);
-  const [seriesList, setSeriesList] = useState<Series[]>(INITIAL_SERIES);
-  const [activeSeries, setActiveSeries] = useState<Series | null>(INITIAL_SERIES[0]);
-  
-  const [episodes, setEpisodes] = useState<Episode[]>(INITIAL_EPISODES);
-  const [activeEpisode, setActiveEpisode] = useState<Episode | null>(INITIAL_EPISODES[0]);
+  // Global State initialized from Local Storage with fallback to mock data
+  const [user, setUser] = useState(() => {
+    const cached = localStorage.getItem('ais_user');
+    return cached ? JSON.parse(cached) : INITIAL_USER;
+  });
 
-  const [characters, setCharacters] = useState<Character[]>(INITIAL_CHARACTERS);
-  const [environments, setEnvironments] = useState<Environment[]>(INITIAL_ENVIRONMENTS);
-  const [scenes, setScenes] = useState<Scene[]>(INITIAL_SCENES);
+  const [seriesList, setSeriesList] = useState<Series[]>(() => {
+    const cached = localStorage.getItem('ais_series');
+    return cached ? JSON.parse(cached) : INITIAL_SERIES;
+  });
+
+  const [activeSeries, setActiveSeries] = useState<Series | null>(() => {
+    const cached = localStorage.getItem('ais_active_series');
+    if (cached) return JSON.parse(cached);
+    const list = localStorage.getItem('ais_series');
+    return list ? JSON.parse(list)[0] : INITIAL_SERIES[0];
+  });
+  
+  const [episodes, setEpisodes] = useState<Episode[]>(() => {
+    const cached = localStorage.getItem('ais_episodes');
+    return cached ? JSON.parse(cached) : INITIAL_EPISODES;
+  });
+
+  const [activeEpisode, setActiveEpisode] = useState<Episode | null>(() => {
+    const cached = localStorage.getItem('ais_active_episode');
+    if (cached) return JSON.parse(cached);
+    const list = localStorage.getItem('ais_episodes');
+    return list ? JSON.parse(list)[0] : INITIAL_EPISODES[0];
+  });
+
+  const [characters, setCharacters] = useState<Character[]>(() => {
+    const cached = localStorage.getItem('ais_characters');
+    return cached ? JSON.parse(cached) : INITIAL_CHARACTERS;
+  });
+
+  const [environments, setEnvironments] = useState<Environment[]>(() => {
+    const cached = localStorage.getItem('ais_environments');
+    return cached ? JSON.parse(cached) : INITIAL_ENVIRONMENTS;
+  });
+
+  const [scenes, setScenes] = useState<Scene[]>(() => {
+    const cached = localStorage.getItem('ais_scenes');
+    return cached ? JSON.parse(cached) : INITIAL_SCENES;
+  });
+
+  const [mangaPages, setMangaPages] = useState<MangaPageRecord[]>(() => {
+    const cached = localStorage.getItem('ais_manga_pages');
+    return cached ? JSON.parse(cached) : DRAFT_EXAMPLE_CHAPTER_PAGES;
+  });
+
+  // Auto-save state to Local Storage
+  useEffect(() => {
+    try {
+      localStorage.setItem('ais_user', JSON.stringify(user));
+      localStorage.setItem('ais_series', JSON.stringify(seriesList));
+      if (activeSeries) localStorage.setItem('ais_active_series', JSON.stringify(activeSeries));
+      localStorage.setItem('ais_episodes', JSON.stringify(episodes));
+      if (activeEpisode) localStorage.setItem('ais_active_episode', JSON.stringify(activeEpisode));
+      localStorage.setItem('ais_characters', JSON.stringify(characters));
+      localStorage.setItem('ais_environments', JSON.stringify(environments));
+      localStorage.setItem('ais_scenes', JSON.stringify(scenes));
+      localStorage.setItem('ais_manga_pages', JSON.stringify(mangaPages));
+    } catch (e) {
+      console.warn("Local storage save warning:", e);
+    }
+  }, [user, seriesList, activeSeries, episodes, activeEpisode, characters, environments, scenes, mangaPages]);
+
+  // Sync state to Neon PostgreSQL Database automatically (debounced)
+  useEffect(() => {
+    const syncTimer = setTimeout(() => {
+      fetch('/api/db/sync-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          seriesList,
+          episodes,
+          characters,
+          environments,
+          scenes,
+          mangaPages
+        })
+      }).catch(err => console.warn("Background DB sync notice:", err));
+    }, 1500);
+
+    return () => clearTimeout(syncTimer);
+  }, [seriesList, episodes, characters, environments, scenes, mangaPages]);
+
+  // Load latest database state on mount
+  useEffect(() => {
+    fetch('/api/db/load-state')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && !data.fallback) {
+          if (Array.isArray(data.series) && data.series.length > 0) setSeriesList(data.series);
+          if (Array.isArray(data.episodes) && data.episodes.length > 0) setEpisodes(data.episodes);
+          if (Array.isArray(data.characters) && data.characters.length > 0) setCharacters(data.characters);
+          if (Array.isArray(data.environments) && data.environments.length > 0) setEnvironments(data.environments);
+          if (Array.isArray(data.scenes) && data.scenes.length > 0) setScenes(data.scenes);
+        }
+      })
+      .catch(err => console.warn("Initial DB fetch error:", err));
+  }, []);
 
   // Active Pipeline Tab: 'script' | 'vault' | 'seedance' | 'timeline'
   const [activeTab, setActiveTab] = useState<string>('script');
@@ -480,6 +571,8 @@ export default function App() {
                 onAddEnvironment={handleAddEnvironment}
                 onBackToHome={() => setCurrentView('home')}
                 deductTokens={deductTokens}
+                mangaPages={mangaPages}
+                onUpdateMangaPages={setMangaPages}
               />
             ) : (
               <>

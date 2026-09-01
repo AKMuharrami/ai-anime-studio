@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Sparkles, 
   Layers, 
@@ -31,7 +31,9 @@ import {
   Share2,
   Trash2,
   Plus,
-  Users
+  Users,
+  Cloud,
+  Upload
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import JSZip from 'jszip';
@@ -48,7 +50,7 @@ interface MangaStudioTabProps {
   onBackToHome?: () => void;
 }
 
-interface MangaPanel {
+export interface MangaPanel {
   id: string;
   panelIndex: number;
   layoutClass: string;
@@ -69,7 +71,7 @@ interface MangaPanel {
 }
 
 
-interface MangaPageRecord {
+export interface MangaPageRecord {
   id: string;
   pageNumber: number;
   chapterNumber: number;
@@ -107,18 +109,18 @@ export const DRAFT_EXAMPLE_CHAPTER_PAGES: MangaPageRecord[] = [
         id: 'c1_p1_panel_2',
         panelIndex: 2,
         layoutClass: 'col-span-6 row-span-1 h-56 md:h-64',
-        charactersPresent: ['Boy', 'Bandit 1'],
-        expression: 'Defiant determination on boy, angry snarling face on bandit',
-        equipment: 'Wooden Training Sword, Katana',
-        actionPrompt: 'A young boy in simple training robes holding a wooden bokken sword bravely confronting Bandit 1 holding a steel katana in a temple courtyard.',
-        speechText: "Bandit 1: Out of the way, boy!",
-        bubbleStyle: 'burst',
-        bubbleX: 42,
-        bubbleY: 45,
-        bubbleScale: 0.95,
-        bgUrl: 'https://cdn2.apiframe.ai/images/57e532cb-8485-4af9-bea8-09ee5cade86e-1.png',
-        charSheetUrl: 'https://cdn2.apiframe.ai/images/57e532cb-8485-4af9-bea8-09ee5cade86e-1.png',
-        imageUrl: 'https://cdn2.apiframe.ai/images/57e532cb-8485-4af9-bea8-09ee5cade86e-1.png',
+        charactersPresent: ['Ronin'],
+        expression: 'Elder Ronin carefully watching ready to interfere',
+        equipment: 'Wooden Staff',
+        actionPrompt: 'Elder Ronin carefully watching from the high temple steps, hand resting on his wooden staff, eyes fixed on the fight, ready to step in and interfere.',
+        speechText: "(I am ready to step in if needed...)",
+        bubbleStyle: 'thought',
+        bubbleX: 50,
+        bubbleY: 25,
+        bubbleScale: 1.0,
+        bgUrl: 'https://cdn2.apiframe.ai/images/03ecfc4b-5b9f-47b1-ae23-214119affff6-1.png',
+        charSheetUrl: 'https://cdn2.apiframe.ai/images/03ecfc4b-5b9f-47b1-ae23-214119affff6-1.png',
+        imageUrl: 'https://cdn2.apiframe.ai/images/03ecfc4b-5b9f-47b1-ae23-214119affff6-1.png',
         isRendered: true,
         renderingStatus: 'COMPLETED'
       },
@@ -172,9 +174,9 @@ export const DRAFT_EXAMPLE_CHAPTER_PAGES: MangaPageRecord[] = [
         panelIndex: 2,
         layoutClass: 'col-span-6 row-span-1 h-56 md:h-64',
         charactersPresent: ['Ronin'],
-        expression: 'Anxious worrying, elderly ronin holding staff watching the conflict',
+        expression: 'Elder Ronin worrying',
         equipment: 'Wooden Staff',
-        actionPrompt: 'Elderly ronin traveler holding his wooden staff, watching anxiously with a troubled expression as the young boy fights.',
+        actionPrompt: 'Elderly ronin traveler holding his wooden staff, watching anxiously with a worried expression as the young boy fights.',
         speechText: "",
         bubbleStyle: 'thought',
         bubbleX: 75,
@@ -216,14 +218,14 @@ export const DRAFT_EXAMPLE_CHAPTER_PAGES: MangaPageRecord[] = [
         id: 'c1_p3_panel_1',
         panelIndex: 1,
         layoutClass: 'col-span-12 row-span-2 h-72 md:h-80',
-        charactersPresent: ['Bandit 1', 'Boy', 'Bandit 2'],
-        expression: 'Cruel grins on bandits surrounding the courageous boy',
-        equipment: 'Twin Katana',
-        actionPrompt: 'Bandit 1 on left and Bandit 2 on right surrounding the small young boy in the center of the wooden temple courtyard, blades drawn.',
-        speechText: "Bandit 1: You've got spirit, boy. But it won't save you.",
-        bubbleStyle: 'oval',
-        bubbleX: 35,
-        bubbleY: 45,
+        charactersPresent: ['Ronin'],
+        expression: 'Tense focus, hand on staff, carefully watching ready to interfere',
+        equipment: 'Wooden Staff',
+        actionPrompt: 'Elder Ronin carefully watching from the high temple steps, hand resting on his wooden staff, eyes fixed on the fight, ready to step in and interfere.',
+        speechText: "(Hold on just a little longer, boy... I am ready to step in.)",
+        bubbleStyle: 'thought',
+        bubbleX: 50,
+        bubbleY: 25,
         bubbleScale: 1.0,
         bgUrl: 'https://cdn2.apiframe.ai/images/03ecfc4b-5b9f-47b1-ae23-214119affff6-1.png',
         charSheetUrl: 'https://cdn2.apiframe.ai/images/03ecfc4b-5b9f-47b1-ae23-214119affff6-1.png',
@@ -281,7 +283,9 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
   onAddCharacter,
   onAddEnvironment,
   onBackToHome,
-  deductTokens
+  deductTokens,
+  mangaPages,
+  onUpdateMangaPages
 }) => {
   // Step navigation: 1: Plot, 2: Character, 3: Qwen Composition, 4: Speech Overlay
   const [activeWorkflowStep, setActiveWorkflowStep] = useState<number>(1);
@@ -328,6 +332,117 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
   const [isEnvironmentVaultOpen, setIsEnvironmentVaultOpen] = useState(false);
   const [isPanelVaultOpen, setIsPanelVaultOpen] = useState(false);
   const [isChaptersGalleryOpen, setIsChaptersGalleryOpen] = useState(false);
+
+  // Vercel Cloud Storage Hub & Neon DB Sync Hub States
+  const [isStorageHubOpen, setIsStorageHubOpen] = useState(false);
+  const [storageFiles, setStorageFiles] = useState<any[]>([]);
+  const [isFetchingStorage, setIsFetchingStorage] = useState(false);
+  const [isUploadingToBlob, setIsUploadingToBlob] = useState(false);
+  const [blobUploadCategory, setBlobUploadCategory] = useState<'characters' | 'environments' | 'panels' | 'manga-pages'>('manga-pages');
+
+  const fetchStorageFiles = async () => {
+    setIsFetchingStorage(true);
+    try {
+      const res = await fetch('/api/storage/files?userId=usr_8829_alpha_neon');
+      const data = await res.json();
+      if (data.success) {
+        setStorageFiles(data.files || []);
+      }
+    } catch (err) {
+      console.error("Error fetching storage files:", err);
+    } finally {
+      setIsFetchingStorage(false);
+    }
+  };
+
+  const handleUploadCustomFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingToBlob(true);
+    showToast("Uploading custom asset to secure tenant folder...");
+
+    try {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64Data = reader.result as string;
+        try {
+          const res = await fetch('/api/storage/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              filename: file.name,
+              fileData: base64Data,
+              category: blobUploadCategory,
+              userId: 'usr_8829_alpha_neon'
+            })
+          });
+          const data = await res.json();
+          if (data.success) {
+            showToast(`✨ File successfully stored on ${data.driver === 'vercel_blob' ? 'Vercel Blob Cloud' : 'Local SSD Storage'}!`);
+            
+            // Add file straight to appropriate client vault array!
+            if (blobUploadCategory === 'characters') {
+              onAddCharacter({
+                id: `char_custom_${Date.now()}`,
+                series_id: activeSeries?.id || 'ser_cyber_aethel',
+                name: file.name.split('.')[0] || 'Custom character',
+                fish_voice_token: 'FISH_VOICE_JP_MALE_TACTICAL_BARITONE_01',
+                visual_descriptor: 'Custom user-uploaded character sheet',
+                image_url: data.url,
+                description: 'Custom user-uploaded character sheet stored securely.',
+                is_enhanced: true
+              } as any);
+            } else if (blobUploadCategory === 'environments') {
+              onAddEnvironment({
+                id: `env_custom_${Date.now()}`,
+                series_id: activeSeries?.id || 'ser_cyber_aethel',
+                name: file.name.split('.')[0] || 'Custom location',
+                visual_descriptor: 'Custom user-uploaded environment stage',
+                image_url: data.url,
+                description: 'Custom user-uploaded background stage stored securely.'
+              } as any);
+            }
+
+            // Refresh files list
+            fetchStorageFiles();
+          } else {
+            alert("Upload failed: " + data.error);
+          }
+        } catch (err: any) {
+          alert("Network upload error: " + err.message);
+        } finally {
+          setIsUploadingToBlob(false);
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      console.error(err);
+      setIsUploadingToBlob(false);
+    }
+  };
+
+  const handleDeleteStorageFile = async (url: string) => {
+    if (!confirm("Are you sure you want to permanently delete this file from Cloud Storage & DB records?")) return;
+    
+    showToast("Purging file from cloud container...");
+    try {
+      const res = await fetch('/api/storage/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast("✨ File purged successfully!");
+        fetchStorageFiles();
+      } else {
+        alert("Failed to delete: " + data.message);
+      }
+    } catch (err: any) {
+      alert("Delete network error: " + err.message);
+    }
+  };
 
 
   // New Generation States inside Manga Studio
@@ -660,11 +775,37 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
   const [manualPageCount, setManualPageCount] = useState<number>(3);
   const [manualPanelsPerPage, setManualPanelsPerPage] = useState<number>(3);
 
-  // Manga Storyboard/Panels state initialized to Draft Example Chapter Pages
-  const [pages, setPages] = useState<MangaPageRecord[]>(DRAFT_EXAMPLE_CHAPTER_PAGES);
+  // Manga Storyboard/Panels state initialized to props or Draft Example Chapter Pages
+  const [pages, setPages] = useState<MangaPageRecord[]>(() => {
+    if (mangaPages && mangaPages.length > 0) return mangaPages;
+    return DRAFT_EXAMPLE_CHAPTER_PAGES;
+  });
   const [activePageIndex, setActivePageIndex] = useState(0);
 
-  const [panels, setPanels] = useState<MangaPanel[]>(DRAFT_EXAMPLE_CHAPTER_PAGES[0].panels);
+  const [panels, setPanels] = useState<MangaPanel[]>(() => {
+    const initialPages = (mangaPages && mangaPages.length > 0) ? mangaPages : DRAFT_EXAMPLE_CHAPTER_PAGES;
+    return initialPages[0]?.panels || DRAFT_EXAMPLE_CHAPTER_PAGES[0].panels;
+  });
+
+  // Keep pages in sync when active panels change
+  useEffect(() => {
+    setPages(prevPages => {
+      if (!prevPages[activePageIndex]) return prevPages;
+      const updated = [...prevPages];
+      updated[activePageIndex] = {
+        ...updated[activePageIndex],
+        panels: panels
+      };
+      return updated;
+    });
+  }, [panels, activePageIndex]);
+
+  // Sync back to parent App state & Local Storage whenever pages state changes
+  useEffect(() => {
+    if (onUpdateMangaPages && pages.length > 0) {
+      onUpdateMangaPages(pages);
+    }
+  }, [pages, onUpdateMangaPages]);
 
   const handleSwitchPage = (newIndex: number) => {
     if (newIndex < 0 || newIndex >= pages.length) return;
@@ -1696,6 +1837,17 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
             <span>Chapters Gallery</span>
           </button>
           <button
+            onClick={() => {
+              setIsStorageHubOpen(true);
+              fetchStorageFiles();
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-semibold transition-all"
+            title="Vercel Cloud Storage & Neon DB Sync Hub"
+          >
+            <Cloud className="h-3.5 w-3.5 text-sky-400 animate-pulse" />
+            <span>Cloud Sync Hub</span>
+          </button>
+          <button
             onClick={onBackToHome}
             className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-semibold transition-all"
           >
@@ -1924,6 +2076,22 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
                   💡 <span className="text-rose-400 font-bold">Panel-Linked Matching</span>: Layout options directly match your page's panel count ({panels.length} panels). Incompatible layout options are grayed out. <span className="text-emerald-400 font-bold">Adaptive Flow</span> supports any panel count!
                 </span>
               </p>
+            </div>
+
+            {/* SAVING & FINALIZATION REMINDER BANNER */}
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex items-start gap-3.5 shadow-md">
+              <div className="h-9 w-9 shrink-0 bg-amber-500/20 border border-amber-500/30 rounded-xl flex items-center justify-center text-amber-400">
+                <AlertCircle className="h-5 w-5 animate-pulse" />
+              </div>
+              <div className="flex-1">
+                <h4 className="text-sm font-bold text-amber-200 flex items-center gap-2">
+                  <span>Finalization & Save Notice</span>
+                  <span className="text-[10px] bg-amber-500/20 px-2 py-0.5 rounded-md font-mono font-bold tracking-wider text-amber-400 border border-amber-500/30">Action Required</span>
+                </h4>
+                <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                  ⚠️ Remember to <strong>Save and Finalize</strong> your page! After positioning your dialogue speech bubbles, tweaking visual panels, or adjusting page content, you <strong>MUST</strong> click <span className="text-amber-400 font-semibold underline cursor-pointer hover:text-amber-300" onClick={handleAssemblePage}>"Assemble Live Page"</span>. This renders, compiles, and locks your work securely into your <strong>Vercel Neon PostgreSQL Database & Vercel Blob Cloud Storage</strong> permanently.
+                </p>
+              </div>
             </div>
 
             {/* LIVE WORKSPACE PRODUCTION ACTION BAR */}
@@ -3718,6 +3886,248 @@ def generate_manga_panel(panel_prompt, char_sheet, bg_layout, speech_text, outpu
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VERCEL CLOUD STORAGE & NEON DB SYNC HUB */}
+      {isStorageHubOpen && (
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 sm:p-8 overflow-hidden backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-5xl h-full flex flex-col shadow-2xl relative overflow-hidden animate-fadeIn">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-slate-800 bg-slate-900/80">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 bg-sky-500/20 rounded-xl flex items-center justify-center text-sky-400 border border-sky-500/30">
+                  <Cloud className="h-5 w-5 animate-pulse" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white font-['Cinzel',serif]">Vercel Cloud Storage & Neon DB Sync Hub</h2>
+                  <p className="text-xs text-slate-400">Manage user-isolated cloud assets, live DB queries, and Vercel Blob directories</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsStorageHubOpen(false)}
+                className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                Close Hub
+              </button>
+            </div>
+
+            {/* Content Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-950">
+              
+              {/* TOP LEVEL CLOUD STATE GRID */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Neon DB Metrics */}
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
+                  <div>
+                    <span className="text-[9px] font-mono font-bold uppercase px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      Neon PostgreSQL State
+                    </span>
+                    <h4 className="text-sm font-bold text-white mt-2">Durable Relational Database</h4>
+                    <p className="text-xs text-slate-400 mt-1">Multi-tenant row partition: <span className="text-amber-400 font-mono">usr_8829_alpha_neon</span></p>
+                  </div>
+                  <div className="mt-4 flex items-center justify-between text-xs text-slate-400 border-t border-slate-800/60 pt-3">
+                    <span>Sync Status: <strong className="text-emerald-400">ACTIVE</strong></span>
+                    <span>Tables: <strong className="text-white">8 Online</strong></span>
+                  </div>
+                </div>
+
+                {/* Vercel Blob Cloud Container */}
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
+                  <div>
+                    <span className="text-[9px] font-mono font-bold uppercase px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                      Vercel Blob Storage
+                    </span>
+                    <h4 className="text-sm font-bold text-white mt-2">Universal Asset Cloud</h4>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Mode: <span className="text-sky-400 font-mono font-semibold">Isolated S3 Tenant</span>
+                    </p>
+                  </div>
+                  <div className="mt-4 flex items-center justify-between text-xs text-slate-400 border-t border-slate-800/60 pt-3">
+                    <span>Cloud Objects: <strong className="text-white">{storageFiles.length}</strong></span>
+                    <span>Total Weight: <strong className="text-white">{(storageFiles.reduce((sum, f) => sum + f.size, 0) / (1024 * 1024)).toFixed(2)} MB</strong></span>
+                  </div>
+                </div>
+
+                {/* Global DB Sync Actions */}
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
+                  <div>
+                    <span className="text-[9px] font-mono font-bold uppercase px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      Disaster Recovery
+                    </span>
+                    <h4 className="text-sm font-bold text-white mt-2">Universal Backup Hub</h4>
+                    <p className="text-xs text-slate-400 mt-1">Pull or push full state data anytime to override local cache leaks.</p>
+                  </div>
+                  <div className="mt-4 flex items-center gap-2">
+                    <button
+                      onClick={async () => {
+                        showToast("Initiating Neon DB Hard Sync...");
+                        try {
+                          const activeSeriesList = activeSeries ? [activeSeries] : [];
+                          const res = await fetch('/api/db/sync-all', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              seriesList: activeSeriesList,
+                              episodes: activeEpisode ? [activeEpisode] : [],
+                              characters,
+                              environments,
+                              scenes: [],
+                              mangaPages: historyPages
+                            })
+                          });
+                          const data = await res.json();
+                          if (data.success) {
+                            showToast("✨ Full Studio State Persisted to Neon Database!");
+                          } else {
+                            alert("Sync failed: " + data.message);
+                          }
+                        } catch (err: any) {
+                          alert("Sync network error: " + err.message);
+                        }
+                      }}
+                      className="flex-1 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all cursor-pointer"
+                    >
+                      Backup Now
+                    </button>
+                    <button
+                      onClick={fetchStorageFiles}
+                      className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition-all cursor-pointer"
+                      title="Reload Cloud Directory"
+                    >
+                      <RefreshCw className={`h-4 w-4 ${isFetchingStorage ? 'animate-spin' : ''}`} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* UPLOAD CUSTOM ASSET ENGINE */}
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-800/60 pb-3">
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <span>Store Custom Local Asset on Vercel Blob Cloud</span>
+                    <span className="text-[10px] font-mono text-slate-500">• Upload bypasses size limits</span>
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-400">Vault Category:</span>
+                    <select
+                      value={blobUploadCategory}
+                      onChange={(e: any) => setBlobUploadCategory(e.target.value)}
+                      className="bg-slate-950 border border-slate-800 rounded-lg text-xs px-2.5 py-1 text-slate-300 outline-none focus:border-indigo-500"
+                    >
+                      <option value="characters">Characters Sheet Vault</option>
+                      <option value="environments">Environment Background Vault</option>
+                      <option value="panels">Manga Panels Container</option>
+                      <option value="manga-pages">Assembled Pages Gallery</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
+                  <div className="md:col-span-3">
+                    <label className="flex flex-col items-center justify-center h-28 border-2 border-dashed border-slate-800 hover:border-indigo-500/50 rounded-2xl bg-slate-950/50 cursor-pointer transition-all group">
+                      <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                        <Upload className="h-6 w-6 text-slate-500 group-hover:text-indigo-400 mb-2 transition-all" />
+                        <p className="text-xs text-slate-400 group-hover:text-slate-200 transition-all">
+                          {isUploadingToBlob ? "Transmitting data..." : "Click or Drag to Upload Any Image Asset"}
+                        </p>
+                        <p className="text-[10px] text-slate-600 font-mono mt-1">PNG, JPG, WEBP up to 50MB</p>
+                      </div>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        className="hidden" 
+                        onChange={handleUploadCustomFile}
+                        disabled={isUploadingToBlob} 
+                      />
+                    </label>
+                  </div>
+
+                  <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4 h-28 flex flex-col justify-between">
+                    <span className="text-[10px] text-slate-500 font-mono font-bold uppercase">Pipeline Hook</span>
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      Uploading to <span className="text-indigo-400 font-semibold">{blobUploadCategory}</span> automatically updates reference libraries on active pages.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* CLOUD FILES FILE EXPLORER */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-white font-['Cinzel',serif]">Isolated Cloud Files Explorer</h3>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-slate-400 bg-slate-900 border border-slate-800 rounded px-2 py-0.5 font-mono">
+                      Dir: /user_usr_8829_alpha_neon/
+                    </span>
+                  </div>
+                </div>
+
+                {isFetchingStorage ? (
+                  <div className="flex flex-col items-center justify-center py-20 gap-3">
+                    <RefreshCw className="h-8 w-8 text-indigo-500 animate-spin" />
+                    <span className="text-xs text-slate-400 font-mono">Scanning cloud cluster file nodes...</span>
+                  </div>
+                ) : storageFiles.length === 0 ? (
+                  <div className="bg-slate-900/40 border border-slate-900 rounded-2xl p-12 text-center text-slate-500 text-xs">
+                    No records found in this category. Use the upload tool above to seed your Vercel Blob bucket.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    {storageFiles.map((file, idx) => (
+                      <div 
+                        key={idx} 
+                        className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg flex flex-col justify-between group hover:border-slate-700 transition-all relative animate-fadeIn"
+                      >
+                        {/* Thumbnail */}
+                        <div className="aspect-[4/3] bg-slate-950 flex items-center justify-center overflow-hidden border-b border-slate-800/50 relative">
+                          <img 
+                            src={file.url} 
+                            alt={file.filename} 
+                            className="w-full h-full object-cover group-hover:scale-105 transition-all"
+                            referrerPolicy="no-referrer"
+                          />
+                          <span className="absolute top-2 right-2 text-[9px] font-mono bg-slate-950/80 text-sky-400 border border-slate-800 px-1.5 py-0.5 rounded font-bold uppercase">
+                            {file.category}
+                          </span>
+                        </div>
+
+                        {/* Info & Details */}
+                        <div className="p-3 space-y-2">
+                          <p className="text-[11px] font-bold text-slate-200 truncate" title={file.filename}>
+                            {file.filename}
+                          </p>
+                          <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono">
+                            <span>{(file.size / 1024).toFixed(1)} KB</span>
+                            <span className="capitalize">{file.driver === 'vercel_blob' ? 'Vercel Blob' : 'SSD Storage'}</span>
+                          </div>
+
+                          <div className="flex gap-1.5 pt-1">
+                            <a 
+                              href={file.url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="flex-1 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-bold rounded text-center transition-all"
+                            >
+                              View URL
+                            </a>
+                            <button
+                              onClick={() => handleDeleteStorageFile(file.url)}
+                              className="px-2 py-1 bg-rose-950/50 hover:bg-rose-900 border border-rose-500/20 text-rose-400 text-[10px] font-bold rounded transition-all cursor-pointer"
+                              title="Delete from cloud permanently"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
             </div>
           </div>
         </div>

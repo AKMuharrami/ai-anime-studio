@@ -317,66 +317,153 @@ export const MangaStudioHomePage: React.FC<MangaStudioHomePageProps> = ({
           })}
         </div>
 
-        {/* Selected Page Panels Showcase Grid */}
-        <div className="bg-stone-950 p-6 rounded-2xl border border-amber-900/30 space-y-6 shadow-inner">
-          <div className="flex items-center justify-between border-b border-stone-800/80 pb-3">
+        {/* Selected Page Panels Showcase (EXACT PIPELINE RATIO & CANVAS MATCHING MANGASTUDIOTAB) */}
+        <div className="bg-stone-950 p-6 sm:p-8 rounded-2xl border border-amber-900/30 space-y-6 shadow-inner">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-800/80 pb-3">
             <div className="flex items-center gap-2 font-mono text-xs text-amber-300">
               <Layers className="h-4 w-4 text-amber-400" />
-              <span className="font-bold">DRAFT PAGE {activeDraftPage.pageNumber} SHOWCASE</span>
+              <span className="font-bold">DRAFT PAGE {activeDraftPage.pageNumber} • WORKSPACE PIPELINE CANVAS</span>
               <span className="text-stone-500">•</span>
-              <span className="text-stone-400 font-sans">Gekiga Ink Screentone • High Contrast</span>
+              <span className="text-stone-400 font-sans hidden md:inline">Print B5 Ratio (1:1.58) • Screentone Ink</span>
             </div>
-            <span className="text-[10px] font-mono text-stone-400 bg-stone-900 px-2 py-0.5 rounded border border-stone-800">
-              Reading Order: Top to Bottom (Japanese Layout)
+            <span className="text-[10px] font-mono text-stone-400 bg-stone-900 px-2.5 py-1 rounded border border-stone-800 w-fit">
+              Exact Pipeline Ratio: 1 : 1.58 (B5 Manga Print)
             </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-            {activeDraftPage.panels.map((pnl) => (
-              <div
-                key={pnl.id}
-                className={`${pnl.layoutClass || 'col-span-12'} bg-stone-900/90 border-2 border-stone-700/80 rounded-xl overflow-hidden relative group shadow-lg flex flex-col justify-between p-4 min-h-[240px] hover:border-amber-500/50 transition-all`}
-              >
-                {/* Background image if available */}
-                {pnl.imageUrl && (
+          {/* EXACT PIPELINE MANGA CANVAS (PORTRAIT 1:1.58 RATIO MATCHING MANGASTUDIOTAB WORKSPACE, SCALED 20%) */}
+          <div className="bg-white border-8 border-black rounded-xl p-3.5 sm:p-5 shadow-2xl relative w-full max-w-lg aspect-[1/1.58] mx-auto overflow-hidden flex flex-col justify-between select-none">
+            
+            {/* GRID PANEL WRAPPER */}
+            <div className="flex flex-col h-full justify-between gap-3 relative flex-1 mb-4">
+              
+              {/* ROW 1: PANEL 1 (TOP PANORAMIC PANEL) */}
+              {activeDraftPage.panels[0] && (
+                <div className="w-full h-[48%] border-4 border-black relative overflow-hidden group">
                   <img
-                    src={pnl.imageUrl}
-                    alt={`Panel ${pnl.panelIndex}`}
-                    className="absolute inset-0 w-full h-full object-cover opacity-35 group-hover:opacity-45 transition-opacity mix-blend-luminosity"
+                    src={activeDraftPage.panels[0].imageUrl}
+                    alt={`Panel 1`}
+                    className="w-full h-full object-cover grayscale contrast-125 brightness-95 transition-transform duration-300 group-hover:scale-105"
                     referrerPolicy="no-referrer"
                   />
-                )}
-                
-                {/* Top overlay details */}
-                <div className="relative z-10 flex items-start justify-between gap-2">
-                  <span className="px-2 py-0.5 rounded bg-black/80 text-amber-300 border border-amber-500/30 text-[10px] font-mono font-bold uppercase tracking-wider">
-                    Panel {pnl.panelIndex}
+                  {/* Screentone texture simulation */}
+                  <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-transparent via-transparent to-black/10 mix-blend-multiply pointer-events-none" />
+                  
+                  {/* Panel Number Badge */}
+                  <div className="absolute top-2 left-2 bg-black text-white text-[10px] font-black font-mono h-5 w-5 flex items-center justify-center rounded z-10 shadow-md">
+                    1
+                  </div>
+
+                  {/* Character Tags */}
+                  <div className="absolute top-2 right-2 flex gap-1 z-10">
+                    {activeDraftPage.panels[0].charactersPresent.map((c, i) => (
+                      <span key={i} className="bg-black/80 text-white text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border border-white/20">
+                        {c}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Speech Bubble Overlay */}
+                  {activeDraftPage.panels[0].speechText && (
+                    <div 
+                      className="absolute z-20 max-w-[75%] bg-white text-black px-3 py-2 rounded-2xl border-2 border-black font-sans text-xs font-bold leading-snug shadow-2xl text-center"
+                      style={{
+                        top: `${activeDraftPage.panels[0].bubbleY || 20}%`,
+                        left: `${activeDraftPage.panels[0].bubbleX || 50}%`,
+                        transform: 'translate(-50%, 0)'
+                      }}
+                    >
+                      {activeDraftPage.panels[0].speechText}
+                      <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-black" />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ROW 2: SPLIT PANELS 2 & 3 */}
+              <div className="w-full h-[48%] flex flex-row gap-3">
+                {activeDraftPage.panels.slice(1, 3).map((pnl, idx) => {
+                  const panelNumber = idx + 2;
+                  return (
+                    <div key={pnl.id || panelNumber} className="w-1/2 h-full border-4 border-black relative overflow-hidden group">
+                      <img
+                        src={pnl.imageUrl}
+                        alt={`Panel ${panelNumber}`}
+                        className="w-full h-full object-cover grayscale contrast-125 brightness-95 transition-transform duration-300 group-hover:scale-105"
+                        referrerPolicy="no-referrer"
+                      />
+                      {/* Screentone texture simulation */}
+                      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-transparent via-transparent to-black/10 mix-blend-multiply pointer-events-none" />
+
+                      {/* Panel Number Badge */}
+                      <div className="absolute top-2 left-2 bg-black text-white text-[10px] font-black font-mono h-5 w-5 flex items-center justify-center rounded z-10 shadow-md">
+                        {panelNumber}
+                      </div>
+
+                      {/* Character Tags */}
+                      <div className="absolute top-2 right-2 flex gap-1 z-10">
+                        {pnl.charactersPresent.map((c, i) => (
+                          <span key={i} className="bg-black/80 text-white text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border border-white/20">
+                            {c}
+                          </span>
+                        ))}
+                      </div>
+
+                      {/* Speech Bubble Overlay */}
+                      {pnl.speechText && (
+                        <div 
+                          className="absolute z-20 max-w-[85%] bg-white text-black px-2.5 py-1.5 rounded-2xl border-2 border-black font-sans text-[11px] font-bold leading-tight shadow-2xl text-center"
+                          style={{
+                            top: `${pnl.bubbleY || 30}%`,
+                            left: `${pnl.bubbleX || 50}%`,
+                            transform: 'translate(-50%, 0)'
+                          }}
+                        >
+                          {pnl.speechText}
+                          <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[7px] border-t-black" />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+            </div>
+
+            {/* PAGE FOOTER TEXT EXACT MATCH */}
+            <div className="text-[10px] font-black text-black font-mono tracking-widest uppercase text-center shrink-0 border-t border-black/10 pt-1">
+              PAGE {activeDraftPage.pageNumber} • THE UNBROKEN LINEAGE • CHAPTER 1
+            </div>
+          </div>
+
+          {/* DRAFT PAGE PANEL PROMPTS & DETAILS BREAKDOWN CARDS */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+            {activeDraftPage.panels.map((pnl) => (
+              <div key={pnl.id} className="bg-stone-900/90 border border-stone-800 rounded-xl p-3.5 space-y-2">
+                <div className="flex items-center justify-between text-xs font-mono">
+                  <span className="font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                    Panel #{pnl.panelIndex}
                   </span>
-                  <div className="flex flex-wrap items-center gap-1 justify-end">
+                  <div className="flex gap-1">
                     {pnl.charactersPresent.map((c, i) => (
-                      <span key={i} className="px-1.5 py-0.2 rounded bg-stone-950/90 text-slate-300 border border-stone-700 text-[9px] font-mono">
+                      <span key={i} className="text-[10px] bg-stone-950 text-slate-300 px-1.5 py-0.5 rounded border border-stone-700">
                         {c}
                       </span>
                     ))}
                   </div>
                 </div>
-
-                {/* Speech Bubble Overlay */}
-                {pnl.speechText && (
-                  <div className="relative z-10 my-auto self-center max-w-[85%] bg-white text-black p-3 rounded-2xl border-2 border-black font-sans text-xs font-bold leading-tight shadow-2xl tracking-tight text-center relative">
-                    {pnl.speechText}
-                  </div>
-                )}
-
-                {/* Bottom Overlay Action Prompt */}
-                <div className="relative z-10 mt-auto pt-2 bg-gradient-to-t from-black via-black/80 to-transparent p-2 rounded-lg border-t border-stone-800/60">
-                  <p className="text-[11px] text-slate-300 line-clamp-2 italic font-serif">
-                    "{pnl.actionPrompt}"
+                <p className="text-xs text-slate-300 font-serif italic leading-snug line-clamp-3">
+                  "{pnl.actionPrompt}"
+                </p>
+                {pnl.expression && (
+                  <p className="text-[10px] text-slate-400 font-mono">
+                    <strong className="text-slate-300">Expression:</strong> {pnl.expression}
                   </p>
-                </div>
+                )}
               </div>
             ))}
           </div>
+
         </div>
 
         {/* Section Footer Callout */}

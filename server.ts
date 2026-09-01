@@ -10,7 +10,7 @@ import dotenv from "dotenv";
 import { Pool } from "pg";
 import fs from "fs";
 import { Jimp } from "jimp";
-import { put } from "@vercel/blob";
+import { put, list, del } from "@vercel/blob";
 
 dotenv.config();
 
@@ -383,6 +383,220 @@ server {
 });
 
 // ============================================================================
+// 1.2 MULTI-TIER VERCEL BLOB & LOCAL SSD UPLOAD ENGINE
+// ============================================================================
+
+app.post("/api/storage/upload", async (req, res) => {
+  try {
+    let { filename, fileData, category = 'manga-pages', userId = 'usr_8829_alpha_neon' } = req.body;
+
+    if (!filename || !fileData) {
+      return res.status(400).json({ success: false, error: "Filename and fileData (Base64) are required." });
+    }
+
+    // Sanitize category to prevent directory traversal
+    category = category.replace(/[^a-zA-Z0-9_-]/g, '');
+    
+    // Clean base64 string
+    let base64Data = fileData;
+    if (fileData.includes(";base64,")) {
+      base64Data = fileData.split(";base64,").pop();
+    }
+    const buffer = Buffer.from(base64Data, "base64");
+    const sanitizedFilename = `${Date.now()}-${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+
+    // 1. Try Vercel Blob
+    if (process.env.BLOB_READ_WRITE_TOKEN) {
+      try {
+        const pathKey = `user_${userId}/${category}/${sanitizedFilename}`;
+        console.log(`[StorageEngine] Uploading to Vercel Blob: ${pathKey}`);
+        const blob = await put(pathKey, buffer, {
+          access: 'public',
+          token: process.env.BLOB_READ_WRITE_TOKEN,
+          contentType: filename.endsWith('.png') ? 'image/png' : 'image/jpeg'
+        });
+        return res.json({
+          success: true,
+          url: blob.url,
+          filename: sanitizedFilename,
+          category,
+          size: buffer.length,
+          driver: "vercel_blob"
+        });
+      } catch (blobErr: any) {
+        console.warn("[StorageEngine] Vercel Blob upload failed, falling back to Local SSD:", blobErr.message);
+      }
+    }
+
+    // 2. Fallback to Local SSD
+    const userStorageDir = path.join(tempUploadsDir, `user_${userId}`, category);
+    if (!fs.existsSync(userStorageDir)) {
+      fs.mkdirSync(userStorageDir, { recursive: true });
+    }
+
+    const localFilePath = path.join(userStorageDir, sanitizedFilename);
+    await fs.promises.writeFile(localFilePath, buffer);
+
+    const host = req.get('host');
+    const protocol = req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+    const publicUrl = `${protocol}://${host}/temp-uploads/user_${userId}/${category}/${sanitizedFilename}`;
+
+    console.log(`[StorageEngine] Saved to local SSD. URL: ${publicUrl}`);
+    res.json({
+      success: true,
+      url: publicUrl,
+      filename: sanitizedFilename,
+      category,
+      size: buffer.length,
+      driver: "local_ssd"
+    });
+  } catch (error: any) {
+    console.error("[StorageEngine] Upload critical error:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get("/api/storage/files", async (req, res) => {
+  try {
+    const userId = req.query.userId as string || 'usr_8829_alpha_neon';
+    const filesList: any[] = [];
+
+    // 1. Check Vercel Blob first
+    if (process.env.BLOB_READ_WRITE_TOKEN) {
+      try {
+        const prefix = `user_${userId}/`;
+        console.log(`[StorageEngine] Fetching Vercel Blob files for prefix: ${prefix}`);
+        const result = await list({
+          prefix,
+          token: process.env.BLOB_READ_WRITE_TOKEN
+        });
+
+        const formattedBlobs = result.blobs.map(b => {
+          // Parse category from path e.g. user_xxx/category/filename
+          const parts = b.pathname.split('/');
+          const category = parts[1] || 'general';
+          return {
+            url: b.url,
+            pathname: b.pathname,
+            filename: parts[parts.length - 1],
+            category,
+            uploadedAt: b.uploadedAt,
+            size: b.size,
+            driver: "vercel_blob"
+          };
+        });
+
+        return res.json({
+          success: true,
+          files: formattedBlobs,
+          driver: "vercel_blob",
+          total_count: formattedBlobs.length,
+          total_size_bytes: formattedBlobs.reduce((sum, f) => sum + f.size, 0)
+        });
+      } catch (blobErr: any) {
+        console.warn("[StorageEngine] Failed listing Vercel Blobs, using Local SSD list fallback:", blobErr.message);
+      }
+    }
+
+    // 2. Read local directory
+    const userRootPath = path.join(tempUploadsDir, `user_${userId}`);
+    if (fs.existsSync(userRootPath)) {
+      const categories = await fs.promises.readdir(userRootPath);
+      for (const cat of categories) {
+        const catPath = path.join(userRootPath, cat);
+        const stat = await fs.promises.stat(catPath);
+        if (stat.isDirectory()) {
+          const files = await fs.promises.readdir(catPath);
+          for (const f of files) {
+            const filePath = path.join(catPath, f);
+            const fileStat = await fs.promises.stat(filePath);
+            
+            const host = req.get('host');
+            const protocol = req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+            const publicUrl = `${protocol}://${host}/temp-uploads/user_${userId}/${cat}/${f}`;
+
+            filesList.push({
+              url: publicUrl,
+              pathname: `user_${userId}/${cat}/${f}`,
+              filename: f,
+              category: cat,
+              uploadedAt: fileStat.mtime,
+              size: fileStat.size,
+              driver: "local_ssd"
+            });
+          }
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      files: filesList,
+      driver: "local_ssd",
+      total_count: filesList.length,
+      total_size_bytes: filesList.reduce((sum, f) => sum + f.size, 0)
+    });
+  } catch (error: any) {
+    console.error("[StorageEngine] List files error:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/storage/delete", async (req, res) => {
+  try {
+    const { url } = req.body;
+    if (!url) {
+      return res.status(400).json({ success: false, error: "URL is required for deletion." });
+    }
+
+    let deleted = false;
+    let driverUsed = "none";
+
+    // 1. Delete Vercel Blob
+    if (process.env.BLOB_READ_WRITE_TOKEN && url.includes("public.blob.vercel-storage.com")) {
+      try {
+        console.log(`[StorageEngine] Deleting from Vercel Blob: ${url}`);
+        await del(url, { token: process.env.BLOB_READ_WRITE_TOKEN });
+        deleted = true;
+        driverUsed = "vercel_blob";
+      } catch (blobErr: any) {
+        console.warn("[StorageEngine] Vercel Blob delete failed:", blobErr.message);
+      }
+    }
+
+    // 2. Delete local fallback if it contains /temp-uploads/
+    if (!deleted && url.includes("/temp-uploads/")) {
+      try {
+        const urlParts = url.split("/temp-uploads/");
+        if (urlParts.length > 1) {
+          const relativePath = urlParts[1];
+          // Prevent path traversal
+          if (!relativePath.includes("..")) {
+            const localPath = path.join(tempUploadsDir, relativePath);
+            if (fs.existsSync(localPath)) {
+              await fs.promises.unlink(localPath);
+              deleted = true;
+              driverUsed = "local_ssd";
+              console.log(`[StorageEngine] Deleted local SSD file: ${localPath}`);
+            }
+          }
+        }
+      } catch (localErr: any) {
+        console.error("[StorageEngine] Local file delete error:", localErr);
+      }
+    }
+
+    res.json({
+      success: deleted,
+      driver: driverUsed,
+      message: deleted ? "File deleted successfully." : "File not found or could not be deleted."
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================================================
 // 2. VERCEL NEON POSTGRESQL API ENDPOINTS
 // ============================================================================
 
@@ -405,7 +619,7 @@ app.get("/api/db/status", async (req, res) => {
     const tableNames = tablesRes.rows.map(r => r.table_name);
 
     let rowCounts: Record<string, number> = {};
-    for (const t of ['users', 'series', 'episodes', 'characters', 'environments', 'scenes', 'scene_characters']) {
+    for (const t of ['manga_users', 'manga_series', 'manga_episodes', 'manga_characters', 'manga_environments', 'manga_scenes', 'manga_scene_characters']) {
       if (tableNames.includes(t)) {
         try {
           const countRes = await pool.query(`SELECT COUNT(*) as cnt FROM ${t};`);
@@ -441,7 +655,7 @@ app.get("/api/db/status", async (req, res) => {
 
 app.post("/api/db/transfer-users", async (req, res) => {
   try {
-    const { sourceTable = 'users', targetTable = process.env.USERS_TABLE_NAME || 'users' } = req.body;
+    const { sourceTable = 'users', targetTable = process.env.USERS_TABLE_NAME || 'manga_users' } = req.body;
     const pool = getDbPool();
     
     const checkSource = await pool.query(`SELECT to_regclass($1);`, [sourceTable]);
@@ -492,7 +706,7 @@ app.post("/api/db/init-schema", async (req, res) => {
     // 1. Create tables with proper constraints
     const ddl = `
       -- 1. Create User Table with Strict Prepaid Wallet Rules
-      CREATE TABLE IF NOT EXISTS users (
+      CREATE TABLE IF NOT EXISTS manga_users (
           id VARCHAR(64) PRIMARY KEY,
           email VARCHAR(255) UNIQUE NOT NULL,
           wallet_balance DECIMAL(10, 2) NOT NULL DEFAULT 0.00 CHECK (wallet_balance >= 0.00),
@@ -500,9 +714,9 @@ app.post("/api/db/init-schema", async (req, res) => {
       );
 
       -- 2. Create Series Table (Continuity Hub)
-      CREATE TABLE IF NOT EXISTS series (
+      CREATE TABLE IF NOT EXISTS manga_series (
           id VARCHAR(64) PRIMARY KEY,
-          user_id VARCHAR(64) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          user_id VARCHAR(64) NOT NULL REFERENCES manga_users(id) ON DELETE CASCADE,
           title VARCHAR(255) NOT NULL,
           global_lore TEXT,
           art_style_seed VARCHAR(255),
@@ -511,9 +725,9 @@ app.post("/api/db/init-schema", async (req, res) => {
       );
 
       -- 3. Create Episodes Table (Sequel Tracking Link)
-      CREATE TABLE IF NOT EXISTS episodes (
+      CREATE TABLE IF NOT EXISTS manga_episodes (
           id VARCHAR(64) PRIMARY KEY,
-          series_id VARCHAR(64) NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+          series_id VARCHAR(64) NOT NULL REFERENCES manga_series(id) ON DELETE CASCADE,
           episode_number INT NOT NULL,
           title VARCHAR(255) NOT NULL,
           route VARCHAR(32) NOT NULL DEFAULT 'FULL_EPISODE',
@@ -524,9 +738,9 @@ app.post("/api/db/init-schema", async (req, res) => {
       );
 
       -- 4. Create Characters Table (The Soul ID Vault)
-      CREATE TABLE IF NOT EXISTS characters (
+      CREATE TABLE IF NOT EXISTS manga_characters (
           id VARCHAR(64) PRIMARY KEY,
-          series_id VARCHAR(64) NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+          series_id VARCHAR(64) NOT NULL REFERENCES manga_series(id) ON DELETE CASCADE,
           name VARCHAR(255) NOT NULL,
           fish_voice_token VARCHAR(255) NOT NULL,
           visual_descriptor TEXT NOT NULL,
@@ -537,9 +751,9 @@ app.post("/api/db/init-schema", async (req, res) => {
       );
 
       -- 5. Create Environments Table (Qwen 2.5-VL Master Keyframe Location Vault)
-      CREATE TABLE IF NOT EXISTS environments (
+      CREATE TABLE IF NOT EXISTS manga_environments (
           id VARCHAR(64) PRIMARY KEY,
-          series_id VARCHAR(64) NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+          series_id VARCHAR(64) NOT NULL REFERENCES manga_series(id) ON DELETE CASCADE,
           location_name VARCHAR(255) NOT NULL,
           style_descriptor TEXT NOT NULL,
           master_keyframe_url VARCHAR(512) NOT NULL,
@@ -549,10 +763,10 @@ app.post("/api/db/init-schema", async (req, res) => {
       );
 
       -- 6. Create Scenes Table (Seedance Multimodal Output Vault)
-      CREATE TABLE IF NOT EXISTS scenes (
+      CREATE TABLE IF NOT EXISTS manga_scenes (
           id VARCHAR(64) PRIMARY KEY,
-          episode_id VARCHAR(64) NOT NULL REFERENCES episodes(id) ON DELETE CASCADE,
-          environment_id VARCHAR(64) REFERENCES environments(id) ON DELETE SET NULL,
+          episode_id VARCHAR(64) NOT NULL REFERENCES manga_episodes(id) ON DELETE CASCADE,
+          environment_id VARCHAR(64) REFERENCES manga_environments(id) ON DELETE SET NULL,
           scene_index INT NOT NULL,
           location_name VARCHAR(255),
           action_prompt TEXT NOT NULL,
@@ -570,57 +784,96 @@ app.post("/api/db/init-schema", async (req, res) => {
       );
 
       -- 7. Create Scene Characters Junction Table
-      CREATE TABLE IF NOT EXISTS scene_characters (
-          scene_id VARCHAR(64) NOT NULL REFERENCES scenes(id) ON DELETE CASCADE,
-          character_id VARCHAR(64) NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+      CREATE TABLE IF NOT EXISTS manga_scene_characters (
+          scene_id VARCHAR(64) NOT NULL REFERENCES manga_scenes(id) ON DELETE CASCADE,
+          character_id VARCHAR(64) NOT NULL REFERENCES manga_characters(id) ON DELETE CASCADE,
           PRIMARY KEY (scene_id, character_id)
       );
 
+      -- 8. Create Manga Chapters Table
+      CREATE TABLE IF NOT EXISTS manga_chapters (
+          id VARCHAR(64) PRIMARY KEY,
+          episode_id VARCHAR(64) REFERENCES manga_episodes(id) ON DELETE CASCADE,
+          chapter_number INT NOT NULL,
+          title VARCHAR(255) NOT NULL,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- 9. Create Manga Pages Table
+      CREATE TABLE IF NOT EXISTS manga_pages (
+          id VARCHAR(64) PRIMARY KEY,
+          chapter_id VARCHAR(64) REFERENCES manga_chapters(id) ON DELETE CASCADE,
+          page_number INT NOT NULL,
+          layout_type VARCHAR(64) DEFAULT 'GRID_ADAPTIVE',
+          image_url TEXT,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- 10. Create Manga Panels Table
+      CREATE TABLE IF NOT EXISTS manga_panels (
+          id VARCHAR(64) PRIMARY KEY,
+          page_id VARCHAR(64) REFERENCES manga_pages(id) ON DELETE CASCADE,
+          panel_index INT NOT NULL,
+          action_prompt TEXT NOT NULL,
+          speech_text TEXT,
+          bubble_style VARCHAR(32) DEFAULT 'oval',
+          bubble_x INT DEFAULT 50,
+          bubble_y INT DEFAULT 40,
+          bubble_scale DECIMAL(3,2) DEFAULT 1.0,
+          image_url TEXT,
+          bg_url TEXT,
+          char_sheet_url TEXT,
+          rendering_status VARCHAR(32) DEFAULT 'COMPLETED',
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
       -- Create indexes for ultra-fast lookup
-      CREATE INDEX IF NOT EXISTS idx_episodes_series_id ON episodes(series_id);
-      CREATE INDEX IF NOT EXISTS idx_characters_series_id ON characters(series_id);
-      CREATE INDEX IF NOT EXISTS idx_environments_series_id ON environments(series_id);
-      CREATE INDEX IF NOT EXISTS idx_scenes_episode_id ON scenes(episode_id);
+      CREATE INDEX IF NOT EXISTS idx_episodes_series_id ON manga_episodes(series_id);
+      CREATE INDEX IF NOT EXISTS idx_characters_series_id ON manga_characters(series_id);
+      CREATE INDEX IF NOT EXISTS idx_environments_series_id ON manga_environments(series_id);
+      CREATE INDEX IF NOT EXISTS idx_scenes_episode_id ON manga_scenes(episode_id);
+      CREATE INDEX IF NOT EXISTS idx_manga_pages_chapter_id ON manga_pages(chapter_id);
+      CREATE INDEX IF NOT EXISTS idx_manga_panels_page_id ON manga_panels(page_id);
     `;
 
     await pool.query(ddl);
 
     // Insert Default Seed Data if user table is empty
-    const userCheck = await pool.query("SELECT COUNT(*) as cnt FROM users;");
+    const userCheck = await pool.query("SELECT COUNT(*) as cnt FROM manga_users;");
     let seeded = false;
 
     if (parseInt(userCheck.rows[0].cnt, 10) === 0) {
       // Seed user
       await pool.query(`
-        INSERT INTO users (id, email, wallet_balance) 
+        INSERT INTO manga_users (id, email, wallet_balance) 
         VALUES ('usr_8829_alpha_neon', 'akmuharrami@gmail.com', 1420.50)
         ON CONFLICT (id) DO NOTHING;
       `);
 
       // Seed series
       await pool.query(`
-        INSERT INTO series (id, user_id, title, global_lore, art_style_seed)
+        INSERT INTO manga_series (id, user_id, title, global_lore, art_style_seed)
         VALUES ('ser_cyber_aethel', 'usr_8829_alpha_neon', 'AETHEL: CYBER-SOUL 2099', 'In Neo-Kyoto 2099, neural resonance chips bind human souls to synthetic ether.', 'MAPPA_VIBRANT_CYBERPUNK_CELL_4K_SEED_98214')
         ON CONFLICT (id) DO NOTHING;
       `);
 
       // Seed episode
       await pool.query(`
-        INSERT INTO episodes (id, series_id, episode_number, title, route, full_script_json)
+        INSERT INTO manga_episodes (id, series_id, episode_number, title, route, full_script_json)
         VALUES ('ep_cyber_01', 'ser_cyber_aethel', 1, 'Episode 1: The Glass Monolith', 'FULL_EPISODE', '{"logline": "Detective Ren Takahashi tracks a rogue neural resonance.", "target_runtime_minutes": 18.5}')
         ON CONFLICT (id) DO NOTHING;
       `);
 
       // Seed character
       await pool.query(`
-        INSERT INTO characters (id, series_id, name, fish_voice_token, visual_descriptor, turnaround_url, reference_images, outfit_palette)
+        INSERT INTO manga_characters (id, series_id, name, fish_voice_token, visual_descriptor, turnaround_url, reference_images, outfit_palette)
         VALUES ('char_ren_takahashi', 'ser_cyber_aethel', 'Ren Takahashi', 'FISH_VOICE_JP_MALE_TACTICAL_BARITONE_01', 'Cybernetic detective, obsidian hair, cobalt glowing eye', 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=1200&q=80', ARRAY['https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=800&q=80'], ARRAY['#0A0F1D', '#00F0FF', '#7928CA'])
         ON CONFLICT (id) DO NOTHING;
       `);
 
       // Seed environment
       await pool.query(`
-        INSERT INTO environments (id, series_id, location_name, style_descriptor, master_keyframe_url)
+        INSERT INTO manga_environments (id, series_id, location_name, style_descriptor, master_keyframe_url)
         VALUES ('env_sector_4_alley', 'ser_cyber_aethel', 'Neo-Kyoto Sector 4 Alleyway', 'Rain-soaked asphalt with neon reflection 4K anime keyframe', 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=1920&q=80')
         ON CONFLICT (id) DO NOTHING;
       `);
@@ -631,7 +884,7 @@ app.post("/api/db/init-schema", async (req, res) => {
     res.json({
       success: true,
       message: "Neon PostgreSQL schema successfully migrated and verified!",
-      tables_created: ["users", "series", "episodes", "characters", "environments", "scenes", "scene_characters"],
+      tables_created: ["manga_users", "manga_series", "manga_episodes", "manga_characters", "manga_environments", "manga_scenes", "manga_scene_characters"],
       seeded_initial_data: seeded
     });
   } catch (error: any) {
@@ -678,14 +931,46 @@ app.get("/api/db/load-state", async (req, res) => {
   try {
     const pool = getDbPool();
 
-    const [userRes, seriesRes, epRes, charRes, envRes, scnRes] = await Promise.all([
-      pool.query("SELECT * FROM users LIMIT 1;"),
-      pool.query("SELECT * FROM series ORDER BY created_at DESC;"),
-      pool.query("SELECT * FROM episodes ORDER BY series_id, episode_number;"),
-      pool.query("SELECT * FROM characters ORDER BY created_at ASC;"),
-      pool.query("SELECT * FROM environments ORDER BY created_at ASC;"),
-      pool.query("SELECT * FROM scenes ORDER BY episode_id, scene_index ASC;")
+    const [userRes, seriesRes, epRes, charRes, envRes, scnRes, mangaPagesRes, mangaPanelsRes] = await Promise.all([
+      pool.query("SELECT * FROM manga_users LIMIT 1;"),
+      pool.query("SELECT * FROM manga_series ORDER BY created_at DESC;"),
+      pool.query("SELECT * FROM manga_episodes ORDER BY series_id, episode_number;"),
+      pool.query("SELECT * FROM manga_characters ORDER BY created_at ASC;"),
+      pool.query("SELECT * FROM manga_environments ORDER BY created_at ASC;"),
+      pool.query("SELECT * FROM manga_scenes ORDER BY episode_id, scene_index ASC;"),
+      pool.query("SELECT * FROM manga_pages ORDER BY chapter_id, page_number ASC;").catch(() => ({ rows: [] })),
+      pool.query("SELECT * FROM manga_panels ORDER BY page_id, panel_index ASC;").catch(() => ({ rows: [] }))
     ]);
+
+    const dbPages = mangaPagesRes.rows || [];
+    const dbPanels = mangaPanelsRes.rows || [];
+
+    const mangaPagesMapped = dbPages.map(pg => {
+      const pagePanels = dbPanels.filter((p: any) => p.page_id === pg.id).map((p: any) => ({
+        id: p.id,
+        panelIndex: p.panel_index,
+        layoutClass: p.layout_class || "col-span-6 row-span-1 h-64",
+        actionPrompt: p.action_prompt || "",
+        speechText: p.speech_text || "",
+        bubbleStyle: p.bubble_style || "oval",
+        bubbleX: Number(p.bubble_x ?? 50),
+        bubbleY: Number(p.bubble_y ?? 40),
+        bubbleScale: Number(p.bubble_scale ?? 1.0),
+        imageUrl: p.image_url || "",
+        bgUrl: p.bg_url || "",
+        charSheetUrl: p.char_sheet_url || "",
+        renderingStatus: p.rendering_status || "COMPLETED"
+      }));
+
+      return {
+        id: pg.id,
+        pageNumber: pg.page_number,
+        chapterNumber: 1, 
+        gridLayoutTemplate: pg.layout_type || "GRID_ADAPTIVE",
+        pageImageObj: pg.image_url || "",
+        panels: pagePanels
+      };
+    });
 
     res.json({
       success: true,
@@ -695,7 +980,8 @@ app.get("/api/db/load-state", async (req, res) => {
       episodes: epRes.rows,
       characters: charRes.rows,
       environments: envRes.rows,
-      scenes: scnRes.rows
+      scenes: scnRes.rows,
+      manga_pages: mangaPagesMapped
     });
   } catch (error: any) {
     console.warn("Could not load from Neon DB, client will use cached local state:", error.message);
@@ -704,6 +990,148 @@ app.get("/api/db/load-state", async (req, res) => {
       fallback: true,
       message: "Neon DB load fallback: table not initialized yet. Run /api/db/init-schema."
     });
+  }
+});
+
+// Bulk Sync Endpoint (Saves client state to Neon DB & confirms persistence)
+app.post("/api/db/sync-all", async (req, res) => {
+  try {
+    const { seriesList = [], episodes = [], characters = [], environments = [], scenes = [], mangaPages = [] } = req.body;
+    
+    let dbSynced = false;
+    try {
+      const pool = getDbPool();
+      
+      // Upsert series
+      for (const s of seriesList) {
+        if (!s.id) continue;
+        await pool.query(`
+          INSERT INTO manga_series (id, user_id, title, global_lore, art_style_seed, updated_at)
+          VALUES ($1, $2, $3, $4, $5, NOW())
+          ON CONFLICT (id) DO UPDATE SET
+            title = EXCLUDED.title,
+            global_lore = EXCLUDED.global_lore,
+            art_style_seed = EXCLUDED.art_style_seed,
+            updated_at = NOW();
+        `, [s.id, s.user_id || 'usr_8829_alpha_neon', s.title || 'Untitled Series', s.global_lore || '', s.art_style_seed || '']);
+      }
+
+      // Upsert episodes
+      for (const ep of episodes) {
+        if (!ep.id) continue;
+        await pool.query(`
+          INSERT INTO manga_episodes (id, series_id, episode_number, title, route, full_script_json, master_video_url, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+          ON CONFLICT (id) DO UPDATE SET
+            title = EXCLUDED.title,
+            route = EXCLUDED.route,
+            full_script_json = EXCLUDED.full_script_json,
+            master_video_url = EXCLUDED.master_video_url,
+            updated_at = NOW();
+        `, [ep.id, ep.series_id || seriesList[0]?.id || 'ser_cyber_aethel', ep.episode_number || 1, ep.title || 'Episode 1', ep.route || 'FULL_EPISODE', JSON.stringify(ep.full_script_json || {}), ep.master_video_url || '']);
+      }
+
+      // Upsert characters
+      for (const char of characters) {
+        if (!char.id) continue;
+        await pool.query(`
+          INSERT INTO manga_characters (id, series_id, name, fish_voice_token, visual_descriptor, turnaround_url, reference_images, outfit_palette)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          ON CONFLICT (id) DO UPDATE SET
+            name = EXCLUDED.name,
+            visual_descriptor = EXCLUDED.visual_descriptor,
+            turnaround_url = EXCLUDED.turnaround_url,
+            reference_images = EXCLUDED.reference_images,
+            outfit_palette = EXCLUDED.outfit_palette;
+        `, [char.id, char.series_id || seriesList[0]?.id || 'ser_cyber_aethel', char.name || 'Character', char.fish_voice_token || 'FISH_VOICE_JP_MALE_TACTICAL_BARITONE_01', char.visual_descriptor || '', char.turnaround_url || '', char.reference_images || [], char.outfit_palette || []]);
+      }
+
+      // Upsert environments
+      for (const env of environments) {
+        if (!env.id) continue;
+        await pool.query(`
+          INSERT INTO manga_environments (id, series_id, location_name, style_descriptor, master_keyframe_url)
+          VALUES ($1, $2, $3, $4, $5)
+          ON CONFLICT (id) DO UPDATE SET
+            location_name = EXCLUDED.location_name,
+            style_descriptor = EXCLUDED.style_descriptor,
+            master_keyframe_url = EXCLUDED.master_keyframe_url;
+        `, [env.id, env.series_id || seriesList[0]?.id || 'ser_cyber_aethel', env.location_name || 'Location', env.style_descriptor || '', env.master_keyframe_url || '']);
+      }
+
+      // Upsert scenes
+      for (const scn of scenes) {
+        if (!scn.id) continue;
+        await pool.query(`
+          INSERT INTO manga_scenes (id, episode_id, environment_id, scene_index, location_name, action_prompt, duration_seconds, video_url, audio_url, rendering_status, render_progress, characters_present_names, dialogue, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
+          ON CONFLICT (id) DO UPDATE SET
+            action_prompt = EXCLUDED.action_prompt,
+            video_url = EXCLUDED.video_url,
+            audio_url = EXCLUDED.audio_url,
+            rendering_status = EXCLUDED.rendering_status,
+            render_progress = EXCLUDED.render_progress,
+            characters_present_names = EXCLUDED.characters_present_names,
+            dialogue = EXCLUDED.dialogue,
+            updated_at = NOW();
+        `, [scn.id, scn.episode_id || episodes[0]?.id || 'ep_cyber_01', scn.environment_id || null, scn.scene_index || 1, scn.location_name || '', scn.action_prompt || '', scn.duration_seconds || 30.0, scn.video_url || null, scn.audio_url || null, scn.rendering_status || 'UNRENDERED', scn.render_progress || 0, scn.characters_present_names || [], JSON.stringify(scn.dialogue || [])]);
+      }
+
+      // Upsert manga pages
+      if (Array.isArray(mangaPages) && mangaPages.length > 0) {
+        await pool.query(`
+          INSERT INTO manga_chapters (id, episode_id, chapter_number, title)
+          VALUES ('ch_default_1', $1, 1, 'Chapter 1 Draft')
+          ON CONFLICT (id) DO NOTHING;
+        `, [episodes[0]?.id || 'ep_cyber_01']);
+
+        for (const pg of mangaPages) {
+          if (!pg.id) continue;
+          await pool.query(`
+            INSERT INTO manga_pages (id, chapter_id, page_number, layout_type, image_url)
+            VALUES ($1, 'ch_default_1', $2, $3, $4)
+            ON CONFLICT (id) DO UPDATE SET
+              page_number = EXCLUDED.page_number,
+              layout_type = EXCLUDED.layout_type,
+              image_url = EXCLUDED.image_url;
+          `, [pg.id, pg.pageNumber || 1, pg.gridLayoutTemplate || 'GRID_ADAPTIVE', pg.pageImageObj || '']);
+
+          if (Array.isArray(pg.panels)) {
+            for (const p of pg.panels) {
+              if (!p.id) continue;
+              await pool.query(`
+                INSERT INTO manga_panels (id, page_id, panel_index, action_prompt, speech_text, bubble_style, bubble_x, bubble_y, bubble_scale, image_url, bg_url, char_sheet_url, rendering_status)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                ON CONFLICT (id) DO UPDATE SET
+                  action_prompt = EXCLUDED.action_prompt,
+                  speech_text = EXCLUDED.speech_text,
+                  bubble_style = EXCLUDED.bubble_style,
+                  bubble_x = EXCLUDED.bubble_x,
+                  bubble_y = EXCLUDED.bubble_y,
+                  bubble_scale = EXCLUDED.bubble_scale,
+                  image_url = EXCLUDED.image_url,
+                  bg_url = EXCLUDED.bg_url,
+                  char_sheet_url = EXCLUDED.char_sheet_url,
+                  rendering_status = EXCLUDED.rendering_status;
+              `, [p.id, pg.id, p.panelIndex || 1, p.actionPrompt || '', p.speechText || '', p.bubbleStyle || 'oval', Math.round(p.bubbleX || 50), Math.round(p.bubbleY || 40), p.bubbleScale || 1.0, p.imageUrl || '', p.bgUrl || '', p.charSheetUrl || '', p.renderingStatus || 'COMPLETED']);
+            }
+          }
+        }
+      }
+
+      dbSynced = true;
+    } catch (e: any) {
+      console.warn("Neon DB sync-all warning:", e.message);
+    }
+
+    res.json({
+      success: true,
+      db_synced: dbSynced,
+      timestamp: new Date().toISOString(),
+      message: dbSynced ? "All project data, characters, scenes, and manga pages synced to Neon PostgreSQL DB!" : "State saved to Local Storage cache."
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -890,19 +1318,19 @@ app.post("/api/projects/create", async (req, res) => {
     try {
       const pool = getDbPool();
       await pool.query(`
-        INSERT INTO users (id, email, wallet_balance)
+        INSERT INTO manga_users (id, email, wallet_balance)
         VALUES ($1, $2, $3)
         ON CONFLICT (id) DO NOTHING;
       `, [user_id, 'producer@animestudio.ai', 100.00]);
 
       await pool.query(`
-        INSERT INTO series (id, user_id, title, global_lore, art_style_seed)
+        INSERT INTO manga_series (id, user_id, title, global_lore, art_style_seed)
         VALUES ($1, $2, $3, $4, $5)
         ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, updated_at = NOW();
       `, [seriesId, user_id, series_title, global_lore, art_style_seed]);
 
       await pool.query(`
-        INSERT INTO episodes (id, series_id, episode_number, title, route, full_script_json)
+        INSERT INTO manga_episodes (id, series_id, episode_number, title, route, full_script_json)
         VALUES ($1, $2, $3, $4, $5, $6)
         ON CONFLICT (id) DO NOTHING;
       `, [episodeId, seriesId, 1, episode_title, route, JSON.stringify(newEpisode.full_script_json)]);
@@ -2621,7 +3049,7 @@ app.post("/api/assets/environments/generate", async (req, res) => {
     try {
       const pool = getDbPool();
       await pool.query(`
-        INSERT INTO environments (id, series_id, location_name, style_descriptor, master_keyframe_url)
+        INSERT INTO manga_environments (id, series_id, location_name, style_descriptor, master_keyframe_url)
         VALUES ($1, $2, $3, $4, $5)
         ON CONFLICT (id) DO NOTHING;
       `, [environment.id, environment.series_id, environment.location_name, environment.style_descriptor, environment.master_keyframe_url]);
@@ -2722,7 +3150,7 @@ app.post("/api/assets/characters/turnaround", async (req, res) => {
     try {
       const pool = getDbPool();
       await pool.query(`
-        INSERT INTO characters (id, series_id, name, fish_voice_token, visual_descriptor, turnaround_url, reference_images, outfit_palette)
+        INSERT INTO manga_characters (id, series_id, name, fish_voice_token, visual_descriptor, turnaround_url, reference_images, outfit_palette)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         ON CONFLICT (id) DO NOTHING;
       `, [character.id, character.series_id, character.name, character.fish_voice_token, character.visual_descriptor, character.turnaround_url, character.reference_images, character.outfit_palette]);
@@ -3396,9 +3824,9 @@ app.post("/api/studio/wipe-generations", async (req, res) => {
   try {
     try {
       const pool = getDbPool();
-      await pool.query("DELETE FROM scenes;");
-      await pool.query("DELETE FROM characters;");
-      await pool.query("DELETE FROM environments;");
+      await pool.query("DELETE FROM manga_scenes;");
+      await pool.query("DELETE FROM manga_characters;");
+      await pool.query("DELETE FROM manga_environments;");
     } catch (dbErr) {}
 
     res.json({

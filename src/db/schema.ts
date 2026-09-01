@@ -11,9 +11,10 @@ import {
 } from 'drizzle-orm/pg-core';
 
 // ----------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 // USERS & AUTH
 // ----------------------------------------------------------------------------
-export const users = pgTable('users', {
+export const users = pgTable('manga_users', {
   id: uuid('id').defaultRandom().primaryKey(),
   email: text('email').notNull().unique(),
   password_hash: text('password_hash').notNull(),
@@ -24,7 +25,7 @@ export const users = pgTable('users', {
   created_at: timestamp('created_at').defaultNow().notNull(),
 });
 
-export const otp_verifications = pgTable('otp_verifications', {
+export const otp_verifications = pgTable('manga_otp_verifications', {
   id: uuid('id').defaultRandom().primaryKey(),
   user_id: uuid('user_id').references(() => users.id).notNull(),
   otp_code: text('otp_code').notNull(),
@@ -35,7 +36,7 @@ export const otp_verifications = pgTable('otp_verifications', {
 // ----------------------------------------------------------------------------
 // PROJECT: SERIES & EPISODES
 // ----------------------------------------------------------------------------
-export const series = pgTable('series', {
+export const series = pgTable('manga_series', {
   id: uuid('id').defaultRandom().primaryKey(),
   user_id: uuid('user_id').references(() => users.id).notNull(),
   title: text('title').notNull(),
@@ -45,7 +46,7 @@ export const series = pgTable('series', {
   updated_at: timestamp('updated_at').defaultNow().notNull(),
 });
 
-export const episodes = pgTable('episodes', {
+export const episodes = pgTable('manga_episodes', {
   id: uuid('id').defaultRandom().primaryKey(),
   series_id: uuid('series_id').references(() => series.id).notNull(),
   episode_number: integer('episode_number').notNull(),
@@ -60,7 +61,7 @@ export const episodes = pgTable('episodes', {
 // ----------------------------------------------------------------------------
 // VAULT: CHARACTERS & ENVIRONMENTS
 // ----------------------------------------------------------------------------
-export const characters = pgTable('characters', {
+export const characters = pgTable('manga_characters', {
   id: uuid('id').defaultRandom().primaryKey(),
   series_id: uuid('series_id').references(() => series.id).notNull(),
   name: text('name').notNull(),
@@ -75,7 +76,7 @@ export const characters = pgTable('characters', {
   created_at: timestamp('created_at').defaultNow().notNull(),
 });
 
-export const environments = pgTable('environments', {
+export const environments = pgTable('manga_environments', {
   id: uuid('id').defaultRandom().primaryKey(),
   series_id: uuid('series_id').references(() => series.id).notNull(),
   location_name: text('location_name').notNull(),
@@ -89,7 +90,7 @@ export const environments = pgTable('environments', {
 // ----------------------------------------------------------------------------
 // TIMELINE: SCENES
 // ----------------------------------------------------------------------------
-export const scenes = pgTable('scenes', {
+export const scenes = pgTable('manga_scenes', {
   id: uuid('id').defaultRandom().primaryKey(),
   episode_id: uuid('episode_id').references(() => episodes.id).notNull(),
   environment_id: uuid('environment_id').references(() => environments.id),
@@ -108,7 +109,7 @@ export const scenes = pgTable('scenes', {
   updated_at: timestamp('updated_at').defaultNow().notNull(),
 });
 
-export const scene_characters = pgTable('scene_characters', {
+export const scene_characters = pgTable('manga_scene_characters', {
   scene_id: uuid('scene_id').references(() => scenes.id).notNull(),
   character_id: uuid('character_id').references(() => characters.id).notNull(),
 });
