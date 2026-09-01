@@ -25,6 +25,15 @@ export const INITIAL_SERIES: Series[] = [
     art_style_seed: 'UFOTABLE_ANIME_CINEMATIC_ORCHESTRAL_SEED_55102',
     created_at: '2026-08-25T15:00:00Z',
     updated_at: '2026-08-27T18:00:00Z',
+  },
+  {
+    id: 'ser_unbroken_lineage',
+    user_id: 'usr_8829_alpha_neon',
+    title: 'THE UNBROKEN LINEAGE',
+    global_lore: 'In feudal Japan, an elderly wandering ronin traveler witnesses a courageous young boy standing up to ruthless bandits with a wooden bokken sword.',
+    art_style_seed: 'GEKIGA_INK_WASH_MONOCHROME_HIGH_CONTRAST',
+    created_at: '2026-08-30T10:00:00Z',
+    updated_at: '2026-09-01T01:00:00Z',
   }
 ];
 
@@ -236,6 +245,22 @@ export const INITIAL_EPISODES: Episode[] = [
     master_video_url: undefined,
     created_at: '2026-08-21T14:00:00Z',
     updated_at: '2026-08-28T09:10:00Z'
+  },
+  {
+    id: 'ep_manga_unbroken_01',
+    series_id: 'ser_unbroken_lineage',
+    episode_number: 1,
+    title: 'Chapter 1: The Wooden Blade (Draft Example)',
+    route: 'MANGA_CHAPTER',
+    full_script_json: {
+      logline: 'An elderly ronin traveler witnesses a young boy defend his village against bandits with a wooden bokken.',
+      synopsis: 'Chapter 1 follows Ronin watching from a hill, the boy confronting the bandits, striking back despite overwhelming odds, and standing proud even when his wooden blade breaks.',
+      target_runtime_minutes: 3.0,
+      route: 'MANGA_CHAPTER',
+      scenes: []
+    },
+    created_at: '2026-08-30T10:00:00Z',
+    updated_at: '2026-09-01T01:00:00Z'
   }
 ];
 

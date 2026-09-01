@@ -77,6 +77,202 @@ interface MangaPageRecord {
   pageImageObj?: string;
 }
 
+// Draft Example Chapter Pages definition (3 Pages matching standard chapter draft)
+export const DRAFT_EXAMPLE_CHAPTER_PAGES: MangaPageRecord[] = [
+  {
+    id: 'draft_c1_p1',
+    chapterNumber: 1,
+    pageNumber: 1,
+    panels: [
+      {
+        id: 'c1_p1_panel_1',
+        panelIndex: 1,
+        layoutClass: 'col-span-12 row-span-2 h-72 md:h-80',
+        charactersPresent: ['Ronin'],
+        expression: 'Reflective, looking down over ancient Japanese village',
+        equipment: 'Wooden Staff',
+        actionPrompt: 'Elderly ronin traveler with staff standing on a hilltop, looking over an ancient Japanese village and wooden temple. Wide panoramic angle, cross-hatched monochrome screentones.',
+        speechText: "The world has changed... but the fire in men's hearts remains the same.",
+        bubbleStyle: 'thought',
+        bubbleX: 68,
+        bubbleY: 20,
+        bubbleScale: 1.05,
+        bgUrl: 'https://cdn2.apiframe.ai/images/4ffcb9da-4863-45cf-9653-7d6cc0c75d0b-1.png',
+        charSheetUrl: 'https://cdn2.apiframe.ai/images/4ffcb9da-4863-45cf-9653-7d6cc0c75d0b-1.png',
+        imageUrl: 'https://cdn2.apiframe.ai/images/4ffcb9da-4863-45cf-9653-7d6cc0c75d0b-1.png',
+        isRendered: true,
+        renderingStatus: 'COMPLETED'
+      },
+      {
+        id: 'c1_p1_panel_2',
+        panelIndex: 2,
+        layoutClass: 'col-span-6 row-span-1 h-56 md:h-64',
+        charactersPresent: ['Boy', 'Bandit 1'],
+        expression: 'Defiant determination on boy, angry snarling face on bandit',
+        equipment: 'Wooden Training Sword, Katana',
+        actionPrompt: 'A young boy in simple training robes holding a wooden bokken sword bravely confronting Bandit 1 holding a steel katana in a temple courtyard.',
+        speechText: "Bandit 1: Out of the way, boy!",
+        bubbleStyle: 'burst',
+        bubbleX: 42,
+        bubbleY: 45,
+        bubbleScale: 0.95,
+        bgUrl: 'https://cdn2.apiframe.ai/images/57e532cb-8485-4af9-bea8-09ee5cade86e-1.png',
+        charSheetUrl: 'https://cdn2.apiframe.ai/images/57e532cb-8485-4af9-bea8-09ee5cade86e-1.png',
+        imageUrl: 'https://cdn2.apiframe.ai/images/57e532cb-8485-4af9-bea8-09ee5cade86e-1.png',
+        isRendered: true,
+        renderingStatus: 'COMPLETED'
+      },
+      {
+        id: 'c1_p1_panel_3',
+        panelIndex: 3,
+        layoutClass: 'col-span-6 row-span-1 h-56 md:h-64',
+        charactersPresent: ['Boy'],
+        expression: 'Extreme grit, sweat dripping down brow, fierce eyes',
+        equipment: 'Wooden Sword Hilt',
+        actionPrompt: 'Extreme close-up of the young boy sweating face with intense grit, gripping his wooden sword hilt in front of his face.',
+        speechText: "I won't let you harm anyone!",
+        bubbleStyle: 'oval',
+        bubbleX: 50,
+        bubbleY: 45,
+        bubbleScale: 1.0,
+        bgUrl: 'https://cdn2.apiframe.ai/images/ea81c05f-70f8-48af-9377-a684474024e5-1.png',
+        charSheetUrl: 'https://cdn2.apiframe.ai/images/ea81c05f-70f8-48af-9377-a684474024e5-1.png',
+        imageUrl: 'https://cdn2.apiframe.ai/images/ea81c05f-70f8-48af-9377-a684474024e5-1.png',
+        isRendered: true,
+        renderingStatus: 'COMPLETED'
+      }
+    ]
+  },
+  {
+    id: 'draft_c1_p2',
+    chapterNumber: 1,
+    pageNumber: 2,
+    panels: [
+      {
+        id: 'c1_p2_panel_1',
+        panelIndex: 1,
+        layoutClass: 'col-span-12 row-span-2 h-72 md:h-80',
+        charactersPresent: ['Boy', 'Bandit 1'],
+        expression: 'Shouting strike action, bandit recoiling in pain and surprise',
+        equipment: 'Wooden Sword',
+        actionPrompt: 'Dynamic action strike: The young boy leaps across the wooden temple porch, striking Bandit 1 across the torso with his wooden sword as action speed lines radiate.',
+        speechText: "Bandit 1: Argh! You little brat!",
+        bubbleStyle: 'burst',
+        bubbleX: 52,
+        bubbleY: 30,
+        bubbleScale: 1.0,
+        bgUrl: 'https://cdn2.apiframe.ai/images/b0fa48e5-fd1a-4b5a-b20d-86a11010a15d-1.png',
+        charSheetUrl: 'https://cdn2.apiframe.ai/images/b0fa48e5-fd1a-4b5a-b20d-86a11010a15d-1.png',
+        imageUrl: 'https://cdn2.apiframe.ai/images/b0fa48e5-fd1a-4b5a-b20d-86a11010a15d-1.png',
+        isRendered: true,
+        renderingStatus: 'COMPLETED'
+      },
+      {
+        id: 'c1_p2_panel_2',
+        panelIndex: 2,
+        layoutClass: 'col-span-6 row-span-1 h-56 md:h-64',
+        charactersPresent: ['Ronin'],
+        expression: 'Anxious worrying, elderly ronin holding staff watching the conflict',
+        equipment: 'Wooden Staff',
+        actionPrompt: 'Elderly ronin traveler holding his wooden staff, watching anxiously with a troubled expression as the young boy fights.',
+        speechText: "",
+        bubbleStyle: 'thought',
+        bubbleX: 75,
+        bubbleY: 25,
+        bubbleScale: 0.8,
+        bgUrl: 'https://cdn2.apiframe.ai/images/f2f88c5a-1eb5-420c-ac87-6ae929af2d49-1.png',
+        charSheetUrl: 'https://cdn2.apiframe.ai/images/f2f88c5a-1eb5-420c-ac87-6ae929af2d49-1.png',
+        imageUrl: 'https://cdn2.apiframe.ai/images/f2f88c5a-1eb5-420c-ac87-6ae929af2d49-1.png',
+        isRendered: true,
+        renderingStatus: 'COMPLETED'
+      },
+      {
+        id: 'c1_p2_panel_3',
+        panelIndex: 3,
+        layoutClass: 'col-span-6 row-span-1 h-56 md:h-64',
+        charactersPresent: ['Bandit 2', 'Boy'],
+        expression: 'Screaming rage on Bandit 2, solid defensive guard on boy',
+        equipment: 'Katana, Wooden Sword',
+        actionPrompt: 'Bandit 2 charges forward with a two-handed katana strike towards the young boy who braces himself with his wooden sword.',
+        speechText: "Bandit 2: Die!",
+        bubbleStyle: 'burst',
+        bubbleX: 30,
+        bubbleY: 50,
+        bubbleScale: 0.9,
+        bgUrl: 'https://cdn2.apiframe.ai/images/0cc89ace-73e5-4e19-b157-e411608f3339-1.png',
+        charSheetUrl: 'https://cdn2.apiframe.ai/images/0cc89ace-73e5-4e19-b157-e411608f3339-1.png',
+        imageUrl: 'https://cdn2.apiframe.ai/images/0cc89ace-73e5-4e19-b157-e411608f3339-1.png',
+        isRendered: true,
+        renderingStatus: 'COMPLETED'
+      }
+    ]
+  },
+  {
+    id: 'draft_c1_p3',
+    chapterNumber: 1,
+    pageNumber: 3,
+    panels: [
+      {
+        id: 'c1_p3_panel_1',
+        panelIndex: 1,
+        layoutClass: 'col-span-12 row-span-2 h-72 md:h-80',
+        charactersPresent: ['Bandit 1', 'Boy', 'Bandit 2'],
+        expression: 'Cruel grins on bandits surrounding the courageous boy',
+        equipment: 'Twin Katana',
+        actionPrompt: 'Bandit 1 on left and Bandit 2 on right surrounding the small young boy in the center of the wooden temple courtyard, blades drawn.',
+        speechText: "Bandit 1: You've got spirit, boy. But it won't save you.",
+        bubbleStyle: 'oval',
+        bubbleX: 35,
+        bubbleY: 45,
+        bubbleScale: 1.0,
+        bgUrl: 'https://cdn2.apiframe.ai/images/03ecfc4b-5b9f-47b1-ae23-214119affff6-1.png',
+        charSheetUrl: 'https://cdn2.apiframe.ai/images/03ecfc4b-5b9f-47b1-ae23-214119affff6-1.png',
+        imageUrl: 'https://cdn2.apiframe.ai/images/03ecfc4b-5b9f-47b1-ae23-214119affff6-1.png',
+        isRendered: true,
+        renderingStatus: 'COMPLETED'
+      },
+      {
+        id: 'c1_p3_panel_2',
+        panelIndex: 2,
+        layoutClass: 'col-span-6 row-span-1 h-56 md:h-64',
+        charactersPresent: ['Boy'],
+        expression: 'Bruised face with defiant smile holding broken sword',
+        equipment: 'Broken Wooden Sword',
+        actionPrompt: 'Close-up shot of the young boy smiling through dirt and bruises on his cheeks, holding up his splintered broken wooden sword.',
+        speechText: "Even if I break, I will not fall.",
+        bubbleStyle: 'burst',
+        bubbleX: 45,
+        bubbleY: 42,
+        bubbleScale: 1.0,
+        bgUrl: 'https://cdn2.apiframe.ai/images/31c0bbe2-bf0e-4923-8a62-c449df401041-1.png',
+        charSheetUrl: 'https://cdn2.apiframe.ai/images/31c0bbe2-bf0e-4923-8a62-c449df401041-1.png',
+        imageUrl: 'https://cdn2.apiframe.ai/images/31c0bbe2-bf0e-4923-8a62-c449df401041-1.png',
+        isRendered: true,
+        renderingStatus: 'COMPLETED'
+      },
+      {
+        id: 'c1_p3_panel_3',
+        panelIndex: 3,
+        layoutClass: 'col-span-6 row-span-1 h-56 md:h-64',
+        charactersPresent: ['Ronin'],
+        expression: 'Emotional tear streaming down cheek in profile',
+        equipment: 'Staff',
+        actionPrompt: 'Dramatic side profile close-up of the elderly ronin traveler with tears streaming down his cheek, background temple courtyard in soft focus.',
+        speechText: "He reminds me of... myself.",
+        bubbleStyle: 'thought',
+        bubbleX: 68,
+        bubbleY: 32,
+        bubbleScale: 1.0,
+        bgUrl: 'https://cdn2.apiframe.ai/images/7e083c3f-4ae5-4c5f-b8e0-b30c11624c1e-1.png',
+        charSheetUrl: 'https://cdn2.apiframe.ai/images/7e083c3f-4ae5-4c5f-b8e0-b30c11624c1e-1.png',
+        imageUrl: 'https://cdn2.apiframe.ai/images/7e083c3f-4ae5-4c5f-b8e0-b30c11624c1e-1.png',
+        isRendered: true,
+        renderingStatus: 'COMPLETED'
+      }
+    ]
+  }
+];
+
 export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
   activeSeries,
   activeEpisode,
@@ -104,7 +300,7 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [currentChapter, setCurrentChapter] = useState<number>(1);
 
-  const [historyPages, setHistoryPages] = useState<MangaPageRecord[]>([]);
+  const [historyPages, setHistoryPages] = useState<MangaPageRecord[]>(DRAFT_EXAMPLE_CHAPTER_PAGES);
   const [isCapturing, setIsCapturing] = useState(false);
   const [showChapterPreview, setShowChapterPreview] = useState(false);
   const [fallbackTemplate, setFallbackTemplate] = useState<string>('GRID_ADAPTIVE');
@@ -462,90 +658,13 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
   });
 
   const [manualPageCount, setManualPageCount] = useState<number>(3);
-  const [manualPanelsPerPage, setManualPanelsPerPage] = useState<number>(0);
+  const [manualPanelsPerPage, setManualPanelsPerPage] = useState<number>(3);
 
-  // Manga Storyboard/Panels state
-  const [pages, setPages] = useState<MangaPageRecord[]>([]);
+  // Manga Storyboard/Panels state initialized to Draft Example Chapter Pages
+  const [pages, setPages] = useState<MangaPageRecord[]>(DRAFT_EXAMPLE_CHAPTER_PAGES);
   const [activePageIndex, setActivePageIndex] = useState(0);
 
-  const [panels, setPanels] = useState<MangaPanel[]>([
-    {
-      id: 'panel_1',
-      panelIndex: 1,
-      layoutClass: 'col-span-12 row-span-2 h-72 md:h-80',
-      charactersPresent: ['Kaelen'],
-      expression: 'Intense determination, looking slightly downward at a terminal screen',
-        equipment: '',
-      actionPrompt: 'Kaelen frantically hacking a holographic terminal in a dark, neon-lit cyberpunk tech hub. Wireframe displays reflecting on her glasses, extreme close-up side angle.',
-      speechText: "Just ten more seconds... The firewall is decrypting, but the server matrix is collapsing!",
-      bubbleStyle: 'burst',
-      bubbleX: 25,
-      bubbleY: 30,
-      bubbleScale: 1.0,
-      bgUrl: 'https://images.unsplash.com/photo-1542831371-29b0f74f9713?q=80&w=1200', // Neon grid background placeholder
-      charSheetUrl: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?q=80&w=600', // Character model sheet
-      imageUrl: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?q=80&w=1200', // Rendered placeholder image
-      isRendered: true,
-      renderingStatus: 'COMPLETED'
-    },
-    {
-      id: 'panel_2',
-      panelIndex: 2,
-      layoutClass: 'col-span-6 row-span-1 h-56 md:h-64',
-      charactersPresent: ['Lyra'],
-      expression: 'Cold, ruthless glare with a smirk',
-        equipment: '',
-      actionPrompt: 'Lyra standing in the doorway of the server room. Her cyber-armor sparks red, her hand is drawing an ignited obsidian energy katana. Extreme perspective looking up.',
-      speechText: "Step away from the terminal, hacker. Your signal was intercepted.",
-      bubbleStyle: 'oval',
-      bubbleX: 60,
-      bubbleY: 25,
-      bubbleScale: 0.9,
-      bgUrl: 'https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=1200',
-      charSheetUrl: 'https://images.unsplash.com/photo-1563089145-599997674d42?q=80&w=600',
-      imageUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1200',
-      isRendered: true,
-      renderingStatus: 'COMPLETED'
-    },
-    {
-      id: 'panel_3',
-      panelIndex: 3,
-      layoutClass: 'col-span-6 row-span-1 h-56 md:h-64',
-      charactersPresent: ['Kaelen', 'Lyra'],
-      expression: 'Shocked, sweat drop on brow, turning head rapidly toward doorway',
-        equipment: '',
-      actionPrompt: 'Kaelen looking shocked, turning back over her shoulder towards the camera as crimson sparks fill the background. Sparks flying across the screen.',
-      speechText: "No! How did you bypass the perimeter node? The lockdown was absolute!",
-      bubbleStyle: 'burst',
-      bubbleX: 55,
-      bubbleY: 45,
-      bubbleScale: 1.1,
-      bgUrl: 'https://images.unsplash.com/photo-1542831371-29b0f74f9713?q=80&w=1200',
-      charSheetUrl: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?q=80&w=600',
-      imageUrl: 'https://images.unsplash.com/photo-1614741118887-7a4ee193a5fa?q=80&w=1200',
-      isRendered: true,
-      renderingStatus: 'COMPLETED'
-    },
-    {
-      id: 'panel_4',
-      panelIndex: 4,
-      layoutClass: 'col-span-12 row-span-2 h-72 md:h-80',
-      charactersPresent: ['Lyra'],
-      expression: 'Amused, dominant, pointing katana forward',
-        equipment: '',
-      actionPrompt: 'Lyra pointing her glowing obsidian katana directly towards the camera, cybernetic lens in her left eye glowing white-hot. Screentone dust and shadows swarming the frame.',
-      speechText: "SiliconFlow protocols see through your petty locks. Now, purge the chip or face immediate erasure.",
-      bubbleStyle: 'oval',
-      bubbleX: 75,
-      bubbleY: 30,
-      bubbleScale: 1.0,
-      bgUrl: 'https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=1200',
-      charSheetUrl: 'https://images.unsplash.com/photo-1563089145-599997674d42?q=80&w=600',
-      imageUrl: 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=1200',
-      isRendered: true,
-      renderingStatus: 'COMPLETED'
-    }
-  ]);
+  const [panels, setPanels] = useState<MangaPanel[]>(DRAFT_EXAMPLE_CHAPTER_PAGES[0].panels);
 
   const handleSwitchPage = (newIndex: number) => {
     if (newIndex < 0 || newIndex >= pages.length) return;
