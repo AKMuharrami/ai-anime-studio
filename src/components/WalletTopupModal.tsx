@@ -98,17 +98,18 @@ export const WalletTopupModal: React.FC<WalletTopupModalProps> = ({
           </div>
 
           {/* Current State Banner */}
-          <div className="bg-slate-950 p-6 border-b border-slate-800/80 flex justify-between items-center">
-            <div>
-              <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Current Prepaid Balance</div>
-              <div className="text-3xl font-bold font-mono text-emerald-400 flex items-center gap-3">
-              {(currentBalance * 10).toLocaleString()} <span className="text-sm text-emerald-500/70">Tokens</span>
-              <span className="text-[10px] font-sans px-2 py-1 rounded bg-emerald-950/30 border border-emerald-500/20 text-emerald-300 flex items-center gap-1">
+          <div className="bg-slate-950 p-6 border-b border-slate-800/80 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="space-y-1">
+              <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Current Prepaid Balance</div>
+              <div className="text-3xl font-bold font-mono text-emerald-400 flex flex-wrap items-center gap-2">
+                <span>{(currentBalance * 10).toLocaleString()}</span> 
+                <span className="text-sm text-emerald-500/70">Tokens</span>
+                <span className="text-[10px] font-sans px-2 py-1 rounded bg-emerald-950/30 border border-emerald-500/20 text-emerald-300 flex items-center gap-1">
                   <ShieldCheck className="w-3 h-3" /> No-Debt Balance Guard
                 </span>
               </div>
             </div>
-            <div className="text-right">
+            <div className="sm:text-right">
               <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Active Plan</div>
               <div className="text-lg font-bold text-indigo-400">
                 {currentTier === 'FREE' ? 'Free / Pay-As-You-Go' : `${currentTier} PLAN`}

@@ -16,7 +16,9 @@ import {
   ArrowLeft,
   Tv,
   CheckCircle2,
-  Cpu
+  Cpu,
+  Menu,
+  X
 } from 'lucide-react';
 import { ProjectRoute, Series, Episode } from '../types';
 
@@ -64,6 +66,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAuth
 }) => {
   const [apiCredits, setApiCredits] = useState<number | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const fetchCredits = async () => {
@@ -211,16 +214,16 @@ export const Navbar: React.FC<NavbarProps> = ({
             {!token ? (
               <button
                 onClick={onOpenAuth}
-                className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-rose-600 hover:from-amber-400 hover:to-rose-500 text-white font-bold text-xs transition-all shadow-md shadow-amber-500/15 cursor-pointer flex items-center gap-1.5 hover:scale-[1.02]"
+                className="px-3.5 sm:px-5 py-1.5 sm:py-2 rounded-xl bg-gradient-to-r from-amber-500 to-rose-600 hover:from-amber-400 hover:to-rose-500 text-white font-bold text-[11px] sm:text-xs transition-all shadow-md shadow-amber-500/15 cursor-pointer flex items-center gap-1.5 hover:scale-[1.02]"
               >
                 <Sparkles className="h-3.5 w-3.5 text-amber-200" />
                 <span>Sign In / Register</span>
               </button>
             ) : (
               <>
-                {/* Live ApiFrame Credits Pill */}
+                {/* Live ApiFrame Credits Pill (hidden on sm, handled in mobile drawer) */}
                 <div 
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-950/40 border border-purple-500/30 text-xs font-mono"
+                  className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-950/40 border border-purple-500/30 text-xs font-mono"
                   title="Live ApiFrame Qwen 2 Pro Generation Credits (Synced in real-time)"
                 >
                   <Cpu className="h-3.5 w-3.5 text-purple-400" />
@@ -232,28 +235,179 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </span>
                 </div>
 
-                {/* Prepaid Wallet Pill with No-Debt Guard */}
+                {/* Prepaid Wallet Pill (hidden on sm, handled in mobile drawer) */}
                 <button
                   onClick={onOpenTopupModal}
-                  className="px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300 font-bold border border-emerald-500/20 text-xs transition-colors flex items-center gap-1.5 shadow-sm shadow-emerald-500/10"
+                  className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300 font-bold border border-emerald-500/20 text-xs transition-colors shadow-sm shadow-emerald-500/10"
                 >
                   <Plus className="h-3 w-3" />
-                  TOP-UP
+                  <span>TOP-UP</span>
                 </button>
+                
+                {/* Sign Out (hidden on sm, handled in mobile drawer) */}
                 <button
                   onClick={() => {
                     localStorage.removeItem('ais_token');
                     window.location.reload();
                   }}
-                  className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white font-bold border border-slate-700 text-xs transition-colors shadow-sm"
+                  className="hidden sm:flex items-center px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white font-bold border border-slate-700 text-xs transition-colors shadow-sm"
                 >
                   Sign Out
+                </button>
+
+                {/* Burger Menu Button (Visible on Mobile only) */}
+                <button
+                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                  className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-900 border border-slate-800/50 hover:border-slate-800 transition-all sm:hidden cursor-pointer flex items-center justify-center bg-slate-900/50"
+                  title="Toggle Mobile Menu"
+                >
+                  {isMobileMenuOpen ? <X className="h-4 w-4 text-rose-400" /> : <Menu className="h-4 w-4" />}
                 </button>
               </>
             )}
           </div>
 
         </div>
+
+        {/* Mobile Menu Panel Expansion */}
+        {isMobileMenuOpen && token && (
+          <div className="sm:hidden border-t border-slate-800/80 bg-slate-950 px-4 py-5 space-y-4 animate-slideDown shadow-xl max-h-[85vh] overflow-y-auto">
+            {/* Live ApiFrame Credits */}
+            <div className="flex items-center justify-between p-3 rounded-xl bg-purple-950/25 border border-purple-500/20 text-xs font-mono">
+              <div className="flex items-center gap-2">
+                <Cpu className="h-4 w-4 text-purple-400" />
+                <span className="text-slate-300">Qwen Pro Credits:</span>
+              </div>
+              <span className="text-purple-300 font-bold">
+                {apiCredits !== null ? `${apiCredits} Cr` : 'Syncing...'}
+              </span>
+            </div>
+
+            {/* In Studio View: Project Switchers for Mobile */}
+            {currentView === 'studio' && activeSeries && (
+              <div className="space-y-3 p-3 bg-slate-900/60 border border-slate-800 rounded-xl">
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block">Active Series</label>
+                  <select
+                    value={activeSeries.id}
+                    onChange={(e) => {
+                      const s = seriesList.find(item => item.id === e.target.value);
+                      if (s) {
+                        onSelectSeries(s);
+                        setIsMobileMenuOpen(false);
+                      }
+                    }}
+                    className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs font-semibold rounded-lg px-2.5 py-2 outline-none cursor-pointer"
+                  >
+                    {seriesList.map((s) => (
+                      <option key={s.id} value={s.id} className="bg-slate-900 text-slate-100">
+                        📺 {s.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block">Active Episode</label>
+                  <select
+                    value={activeEpisode?.id || ''}
+                    onChange={(e) => {
+                      const ep = episodes.find(item => item.id === e.target.value);
+                      if (ep) {
+                        onSelectEpisode(ep);
+                        setIsMobileMenuOpen(false);
+                      }
+                    }}
+                    className="w-full bg-slate-950 border border-slate-800 text-rose-300 text-xs font-semibold rounded-lg px-2.5 py-2 outline-none cursor-pointer"
+                  >
+                    {episodes.map((ep) => (
+                      <option key={ep.id} value={ep.id} className="bg-slate-900 text-slate-100">
+                        Ep {ep.episode_number}: {ep.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {activeEpisode && (
+                  <div className="flex items-center gap-2 pt-1">
+                    <span className="text-[10px] text-slate-400 font-mono">Format:</span>
+                    <span className={`px-2 py-0.5 text-[9px] font-semibold rounded uppercase tracking-wider font-mono ${
+                      activeEpisode.route === 'FULL_EPISODE' 
+                        ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40'
+                        : activeEpisode.route === 'SHORT_FORM'
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                        : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                    }`}>
+                      {activeEpisode.route === 'FULL_EPISODE' ? 'Route A (20m)' : activeEpisode.route === 'SHORT_FORM' ? 'Route B (3m)' : 'Route C (Manga)'}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Quick Action Commands */}
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <button
+                onClick={() => {
+                  onOpenSchemaModal();
+                  setIsMobileMenuOpen(false);
+                }}
+                className="flex items-center justify-center gap-1.5 p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-slate-300 hover:text-white"
+              >
+                <Database className="h-3.5 w-3.5 text-sky-400" />
+                <span>DB Schema</span>
+              </button>
+              <button
+                onClick={() => {
+                  onOpenPythonModal();
+                  setIsMobileMenuOpen(false);
+                }}
+                className="flex items-center justify-center gap-1.5 p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-slate-300 hover:text-white"
+              >
+                <Code2 className="h-3.5 w-3.5 text-amber-400" />
+                <span>Celery Workers</span>
+              </button>
+            </div>
+
+            {/* Resume button if on homepage */}
+            {currentView === 'home' && activeSeries && (
+              <button
+                onClick={() => {
+                  onNavigateStudio();
+                  setIsMobileMenuOpen(false);
+                }}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 text-xs font-semibold transition-all"
+              >
+                <Tv className="h-4 w-4 text-rose-400" />
+                <span>Resume Pipeline Studio</span>
+              </button>
+            )}
+
+            {/* Footer level actions: Top-Up and Logout */}
+            <div className="flex items-center gap-2.5 pt-2 border-t border-slate-800">
+              <button
+                onClick={() => {
+                  onOpenTopupModal();
+                  setIsMobileMenuOpen(false);
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 font-bold border border-emerald-500/30 text-xs transition-colors flex items-center justify-center gap-1.5 shadow-sm shadow-emerald-500/5"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                TOP-UP BALANCES
+              </button>
+              <button
+                onClick={() => {
+                  localStorage.removeItem('ais_token');
+                  window.location.reload();
+                }}
+                className="py-2.5 px-4 rounded-xl bg-slate-900 text-slate-400 hover:text-white font-bold border border-slate-800 text-xs transition-all"
+              >
+                Sign Out
+              </button>
+            </div>
+
+          </div>
+        )}
 
         {/* In Studio View: Interactive 4-Step Pipeline Wizard Bar */}
         {currentView === 'studio' && !activeEpisode?.route?.startsWith('MANGA_') && (

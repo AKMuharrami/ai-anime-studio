@@ -86,7 +86,30 @@ export default function App() {
 
   const [mangaPages, setMangaPages] = useState<MangaPageRecord[]>(() => {
     const cached = localStorage.getItem('ais_manga_pages');
-    return cached ? JSON.parse(cached) : DRAFT_EXAMPLE_CHAPTER_PAGES;
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached) as MangaPageRecord[];
+        parsed.forEach(p => {
+          if (p.pageNumber === 1) {
+            p.panels.forEach(panel => {
+              if (panel.id === 'c1_p1_panel_2') {
+                panel.speechText = "I cannot just standby watching";
+                panel.bubbleY = 60;
+                if (panel.imageUrl?.includes('03ecfc4b-5b9f-47b1-ae23-214119affff6')) {
+                  panel.imageUrl = 'https://cdn2.apiframe.ai/images/57e532cb-8485-4af9-bea8-09ee5cade86e-1.png';
+                  panel.bgUrl = 'https://cdn2.apiframe.ai/images/57e532cb-8485-4af9-bea8-09ee5cade86e-1.png';
+                  panel.charSheetUrl = 'https://cdn2.apiframe.ai/images/57e532cb-8485-4af9-bea8-09ee5cade86e-1.png';
+                }
+              }
+            });
+          }
+        });
+        return parsed;
+      } catch (e) {
+        console.error("Failed to parse cached manga pages:", e);
+      }
+    }
+    return DRAFT_EXAMPLE_CHAPTER_PAGES;
   });
 
   // Auto-save state to Local Storage
