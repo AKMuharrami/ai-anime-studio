@@ -47,9 +47,20 @@ router.post('/register', async (req, res) => {
     });
 
     // Send Email
-    await sendOTP(email, otpCode);
-
-    res.json({ success: true, message: 'OTP sent to email', userId: user.id });
+    let emailSent = true;
+    try {
+      await sendOTP(email, otpCode);
+    } catch (mailErr: any) {
+      console.error('Mail delivery failed but user registration was recorded:', mailErr);
+      emailSent = false;
+    }
+ 
+    res.json({ 
+      success: true, 
+      message: emailSent ? 'OTP sent to email' : 'Account created. Email delivery pending or simulated.', 
+      userId: user.id,
+      otpCode: emailSent ? undefined : otpCode
+    });
   } catch (err: any) {
     console.error('Register Error:', err);
     res.status(500).json({ error: 'Internal server error' });

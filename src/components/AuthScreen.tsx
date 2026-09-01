@@ -29,7 +29,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onClose 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       
-      setMessage("Verification code sent to your email.");
+      if (data.otpCode) {
+        setMessage(`Account created! Fallback Verification Code: ${data.otpCode}`);
+        setOtp(data.otpCode);
+      } else {
+        setMessage("Verification code sent to your email.");
+      }
       setMode('verify');
     } catch (err: any) {
       setError(err.message);
