@@ -34,6 +34,7 @@ import {
   Users
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
+import JSZip from 'jszip';
 import { Scene, Character, Environment, Episode, Series } from '../types';
 
 interface MangaStudioTabProps {
@@ -107,6 +108,19 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
   const [isCapturing, setIsCapturing] = useState(false);
   const [showChapterPreview, setShowChapterPreview] = useState(false);
   const [fallbackTemplate, setFallbackTemplate] = useState<string>('GRID_ADAPTIVE');
+  const [isExportingZip, setIsExportingZip] = useState(false);
+  const [assembledPageModal, setAssembledPageModal] = useState<{
+    pageImageObj: string;
+    pageNumber: number;
+    chapterNumber: number;
+    title: string;
+  } | null>(null);
+  const [toastNotification, setToastNotification] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastNotification(msg);
+    setTimeout(() => setToastNotification(null), 3500);
+  };
 
   const [mangaPageFooterText, setMangaPageFooterText] = useState(
     `- PAGE 01 / 01 (MODESTY GUIDELINES NEURAL MANGA) -`
@@ -1026,25 +1040,26 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
     }
   };
 
-  // Step 4: Simulate Assembly (Overlay Pillow Speech Bubbles + Export)
-  const handleAssemblePage = () => {
-    setIsAssemblingPage(true);
-    setTimeout(() => {
-      setIsAssemblingPage(false);
-      alert("Manga Page successfully assembled locally via Pillow! Speech bubbles rendered in high-fidelity vector formats & typography locked.");
-    }, 1200);
-  };
-
-    const captureFullPage = async (): Promise<string | undefined> => {
+  // High-Res DOM Capture Helper
+  const captureFullPage = async (): Promise<string | undefined> => {
     try {
       const pageNode = document.getElementById('manga-page-grid');
       if (!pageNode) return undefined;
+      
+      // Temporarily hide UI elements that shouldn't appear in final print output
+      const editButtons = pageNode.querySelectorAll('.group-hover\\:opacity-100, .group\\/footer button');
+      editButtons.forEach(el => el.classList.add('invisible'));
+
       const canvas = await html2canvas(pageNode, { 
         useCORS: true, 
-        scale: 2, 
-        backgroundColor: '#000000' 
+        scale: 2.5, 
+        backgroundColor: '#ffffff',
+        logging: false
       });
-      return canvas.toDataURL('image/jpeg', 0.9);
+
+      editButtons.forEach(el => el.classList.remove('invisible'));
+
+      return canvas.toDataURL('image/jpeg', 0.92);
     } catch (err) {
       console.error("Failed to capture page:", err);
       return undefined;
@@ -1060,6 +1075,170 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
     document.body.removeChild(link);
   };
 
+  // Step 4: Live Assembly & High-Res Snapshot
+  const handleAssemblePage = async () => {
+    setIsAssemblingPage(true);
+    showToast("Assembling live high-res manga page...");
+
+    // Brief pause for UI rendering stabilization
+    await new Promise(r => setTimeout(r, 120));
+
+    const dataUrl = await captureFullPage();
+    setIsAssemblingPage(false);
+
+    if (!dataUrl) {
+      alert("Failed to assemble live page. Please ensure the page layout grid is visible.");
+      return;
+    }
+
+    // Store in active pages array
+    const updatedPages = [...pages];
+    if (updatedPages[activePageIndex]) {
+      updatedPages[activePageIndex] = {
+        ...updatedPages[activePageIndex],
+        panels: [...panels],
+        pageImageObj: dataUrl
+      };
+      setPages(updatedPages);
+    }
+
+    // Sync with historyPages
+    setHistoryPages(prev => {
+      const existingIdx = prev.findIndex(p => p.pageNumber === currentPage && p.chapterNumber === currentChapter);
+      const newRecord: MangaPageRecord = {
+        id: pages[activePageIndex]?.id || `page_${currentPage}_${Date.now()}`,
+        chapterNumber: currentChapter,
+        pageNumber: currentPage,
+        panels: [...panels],
+        pageImageObj: dataUrl
+      };
+      if (existingIdx >= 0) {
+        const copy = [...prev];
+        copy[existingIdx] = newRecord;
+        return copy;
+      }
+      return [...prev, newRecord];
+    });
+
+    // Open Live Assembled Page Modal
+    setAssembledPageModal({
+      pageImageObj: dataUrl,
+      pageNumber: currentPage,
+      chapterNumber: currentChapter,
+      title: activeSeries?.title || 'Manga Page'
+    });
+
+    showToast("✨ Page Assembled & Saved Live!");
+  };
+
+  // Copy Assembled Page Image
+  const handleCopyAssembledImage = async (dataUrl: string) => {
+    try {
+      const response = await fetch(dataUrl);
+      const blob = await response.blob();
+      await navigator.clipboard.write([
+        new ClipboardItem({ [blob.type]: blob })
+      ]);
+      showToast("📋 Assembled Page copied to clipboard!");
+    } catch (err) {
+      console.error("Clipboard write failed:", err);
+      showToast("Downloading image instead...");
+      downloadDataUrl(dataUrl, `manga_c${currentChapter}_p${currentPage}.jpg`);
+    }
+  };
+
+  // Export Chapter as ZIP Package
+  const handleExportChapterZip = async () => {
+    setIsExportingZip(true);
+    showToast("Bundling chapter pages into ZIP archive...");
+
+    try {
+      const zip = new JSZip();
+      const safeTitle = (activeSeries?.title || 'Manga').replace(/[^a-zA-Z0-9_\-]/g, '_');
+      const chapterFolder = zip.folder(`Chapter_${currentChapter}_${safeTitle}`);
+
+      // Map pages to ensure deduplicated, sequential list
+      const pageMap = new Map<number, { pageNumber: number; chapterNumber: number; dataUrl?: string; panels: MangaPanel[] }>();
+
+      // Load history pages for current chapter
+      historyPages.forEach(hp => {
+        if (hp.chapterNumber === currentChapter) {
+          pageMap.set(hp.pageNumber, {
+            pageNumber: hp.pageNumber,
+            chapterNumber: hp.chapterNumber,
+            dataUrl: hp.pageImageObj,
+            panels: hp.panels
+          });
+        }
+      });
+
+      // Include active page
+      const activeDataUrl = await captureFullPage();
+      pageMap.set(currentPage, {
+        pageNumber: currentPage,
+        chapterNumber: currentChapter,
+        dataUrl: activeDataUrl || pages[activePageIndex]?.pageImageObj,
+        panels: [...panels]
+      });
+
+      const pagesArray = Array.from(pageMap.values()).sort((a, b) => a.pageNumber - b.pageNumber);
+
+      if (pagesArray.length === 0) {
+        alert("No pages found in this chapter to export.");
+        setIsExportingZip(false);
+        return;
+      }
+
+      for (const p of pagesArray) {
+        let imgData = p.dataUrl;
+        if (!imgData && p.pageNumber === currentPage) {
+          imgData = activeDataUrl;
+        }
+        if (imgData) {
+          const base64Content = imgData.split(',')[1];
+          const fileName = `Page_${String(p.pageNumber).padStart(2, '0')}.jpg`;
+          chapterFolder?.file(fileName, base64Content, { base64: true });
+        }
+      }
+
+      // Add Manifest Metadata
+      const manifest = {
+        series: activeSeries?.title || 'Untitled Series',
+        chapterNumber: currentChapter,
+        totalPages: pagesArray.length,
+        exportedAt: new Date().toISOString(),
+        pages: pagesArray.map(p => ({
+          pageNumber: p.pageNumber,
+          panelCount: p.panels.length,
+          panels: p.panels.map(panel => ({
+            actionPrompt: panel.actionPrompt,
+            speechText: panel.speechText,
+            charactersPresent: panel.charactersPresent
+          }))
+        }))
+      };
+
+      zip.file('chapter_manifest.json', JSON.stringify(manifest, null, 2));
+
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const downloadUrl = URL.createObjectURL(zipBlob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `${safeTitle}_Chapter_${currentChapter}_FullExport.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(downloadUrl);
+
+      showToast(`📦 Chapter ${currentChapter} ZIP Export Downloaded!`);
+    } catch (err) {
+      console.error("Failed to export ZIP:", err);
+      alert("Failed to create chapter ZIP export.");
+    } finally {
+      setIsExportingZip(false);
+    }
+  };
+
   const handleSavePanel = async (panelId: string, index: number, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
@@ -1069,10 +1248,11 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
       const originalRing = panelNode.className;
       panelNode.className = panelNode.className.replace(/ring-[^\s]+/g, '').replace(/border-rose-500/g, 'border-transparent');
       
-      const canvas = await html2canvas(panelNode, { useCORS: true, scale: 2 });
+      const canvas = await html2canvas(panelNode, { useCORS: true, scale: 2.5 });
       panelNode.className = originalRing;
       
-      downloadDataUrl(canvas.toDataURL('image/jpeg', 0.9), `chapter${currentChapter}_page${currentPage}_panel${index + 1}.jpg`);
+      downloadDataUrl(canvas.toDataURL('image/jpeg', 0.92), `chapter${currentChapter}_page${currentPage}_panel${index + 1}.jpg`);
+      showToast(`Downloaded Panel #${index + 1}`);
     } catch (err) {
       console.error("Failed to export panel:", err);
       alert("Failed to export panel image.");
@@ -1080,22 +1260,13 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
   };
 
   const handleSaveFullChapter = () => {
-    if (historyPages.length === 0) {
-      alert("No pages have been completed yet to save.");
-      return;
-    }
-    historyPages.forEach((hp, idx) => {
-      if (hp.pageImageObj) {
-        setTimeout(() => {
-          downloadDataUrl(hp.pageImageObj, `manga_c${hp.chapterNumber}_p${hp.pageNumber}.jpg`);
-        }, idx * 600); // Stagger downloads
-      }
-    });
+    handleExportChapterZip();
   };
 
   const handleNextPage = async () => {
     if (mangaScope === 'single_page') {
-      alert("You're in Single Page scope. Project complete!");
+      await handleAssemblePage();
+      showToast("Single Page completed & assembled!");
       return;
     }
     
@@ -1113,18 +1284,14 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
     setPages(updatedPages);
 
     if (activePageIndex < pages.length - 1) {
-      // Move to next page in the generated blueprint
       handleSwitchPage(activePageIndex + 1);
-      setActiveWorkflowStep(3); // Go to composition for next page
+      setActiveWorkflowStep(3);
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      showToast(`Switched to Page ${activePageIndex + 2}`);
     } else {
-      // Chapter Complete
       setHistoryPages(prev => [...prev, ...updatedPages]);
-      alert("Chapter complete! All pages have been saved to history.");
-      setPages([]);
-      setPanels([]);
-      setActiveWorkflowStep(1);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      setShowChapterPreview(true);
+      showToast("🎉 Chapter complete! All pages saved to history.");
     }
   };
 
@@ -1638,6 +1805,51 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
                   💡 <span className="text-rose-400 font-bold">Panel-Linked Matching</span>: Layout options directly match your page's panel count ({panels.length} panels). Incompatible layout options are grayed out. <span className="text-emerald-400 font-bold">Adaptive Flow</span> supports any panel count!
                 </span>
               </p>
+            </div>
+
+            {/* LIVE WORKSPACE PRODUCTION ACTION BAR */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-3 shadow-lg">
+              <div className="flex items-center gap-2">
+                <div className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-xs font-mono font-bold text-slate-200">
+                  Live Page {currentPage} Canvas (Chapter {currentChapter})
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={handleAssemblePage}
+                  disabled={isAssemblingPage}
+                  className="px-3.5 py-1.5 bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  title="Assemble and preview high-res live canvas"
+                >
+                  {isAssemblingPage ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
+                  <span>Assemble Live Page</span>
+                </button>
+                <button
+                  onClick={async () => {
+                    showToast("Capturing active page...");
+                    const dataUrl = await captureFullPage();
+                    if (dataUrl) {
+                      downloadDataUrl(dataUrl, `manga_c${currentChapter}_p${currentPage}.jpg`);
+                      showToast(`Downloaded Page ${currentPage} JPG`);
+                    } else alert("Ensure the page grid is visible to download.");
+                  }}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  title="Download current page image directly as JPG"
+                >
+                  <Download className="h-3.5 w-3.5 text-emerald-400" />
+                  <span>Download Page (JPG)</span>
+                </button>
+                <button
+                  onClick={handleExportChapterZip}
+                  disabled={isExportingZip}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-indigo-600/20 cursor-pointer active:scale-95"
+                  title="Export all pages in chapter as a single ZIP archive"
+                >
+                  {isExportingZip ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Layers className="h-3.5 w-3.5 text-indigo-200" />}
+                  <span>Export Chapter (ZIP)</span>
+                </button>
+              </div>
             </div>
 
             {/* MANGA GENTLEMAN GRID WORKSPACE (PORTRAIT ASPECT RATIO PRESERVED) */}
@@ -3116,21 +3328,22 @@ def generate_manga_panel(panel_prompt, char_sheet, bg_layout, speech_text, outpu
                   <BookOpen className="h-5 w-5" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-white font-['Cinzel',serif]">Chapter Preview</h2>
-                  <p className="text-xs text-slate-400">Review your generated manga pages</p>
+                  <h2 className="text-xl font-bold text-white font-['Cinzel',serif]">Chapter {currentChapter} Gallery & History</h2>
+                  <p className="text-xs text-slate-400">Review, preview, and download your assembled manga pages</p>
                 </div>
               </div>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
                 <button 
-                  onClick={handleSaveFullChapter}
-                  className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-emerald-500/20 transition-all"
+                  onClick={handleExportChapterZip}
+                  disabled={isExportingZip}
+                  className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-indigo-500/20 transition-all cursor-pointer active:scale-95"
                 >
-                  <Download className="h-4 w-4" />
-                  <span>Download Full Chapter</span>
+                  {isExportingZip ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Layers className="h-4 w-4" />}
+                  <span>Export Full Chapter (ZIP)</span>
                 </button>
                 <button 
                   onClick={() => setShowChapterPreview(false)}
-                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 p-2.5 rounded-xl transition-all cursor-pointer"
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer"
                 >
                   Close
                 </button>
@@ -3141,10 +3354,19 @@ def generate_manga_panel(panel_prompt, char_sheet, bg_layout, speech_text, outpu
             <div className="flex-1 overflow-y-auto p-6 space-y-12 bg-slate-950">
               {historyPages.map((hp) => (
                 <div key={hp.id} className="flex flex-col items-center">
-                  <div className="mb-4 text-center">
-                    <span className="text-xs font-mono font-bold text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-full border border-indigo-500/20">
-                      Page {hp.pageNumber}
+                  <div className="mb-4 flex items-center justify-between w-full max-w-3xl px-2">
+                    <span className="text-xs font-mono font-bold text-indigo-300 bg-indigo-500/20 px-3 py-1 rounded-full border border-indigo-500/30">
+                      Page {hp.pageNumber} • Chapter {hp.chapterNumber}
                     </span>
+                    {hp.pageImageObj && (
+                      <button
+                        onClick={() => downloadDataUrl(hp.pageImageObj, `manga_c${hp.chapterNumber}_p${hp.pageNumber}.jpg`)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-300 text-xs font-bold rounded-lg border border-slate-700 transition-all cursor-pointer"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                        <span>Download Page {hp.pageNumber}</span>
+                      </button>
+                    )}
                   </div>
                   <div className="relative group max-w-3xl w-full border-8 border-slate-900 rounded-xl overflow-hidden shadow-2xl bg-white">
                     {hp.pageImageObj ? (
@@ -3377,6 +3599,88 @@ def generate_manga_panel(panel_prompt, char_sheet, bg_layout, speech_text, outpu
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* LIVE TOAST NOTIFICATION BANNER */}
+      {toastNotification && (
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 border-2 border-rose-500/80 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-fadeIn backdrop-blur-md">
+          <Sparkles className="h-5 w-5 text-amber-400 animate-spin" />
+          <span className="text-xs font-mono font-bold">{toastNotification}</span>
+        </div>
+      )}
+
+      {/* LIVE ASSEMBLED PAGE LIGHTBOX MODAL */}
+      {assembledPageModal && (
+        <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4 sm:p-6 overflow-hidden backdrop-blur-md">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-4xl max-h-[95vh] flex flex-col shadow-2xl relative overflow-hidden animate-fadeIn">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-800 bg-slate-950/90 z-10">
+              <div className="flex items-center gap-3">
+                <div className="h-9 w-9 bg-rose-500/20 rounded-xl flex items-center justify-center text-rose-400 border border-rose-500/30">
+                  <Printer className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-white font-['Cinzel',serif] flex items-center gap-2">
+                    <span>Live Assembled Page</span>
+                    <span className="text-[10px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
+                      Page {assembledPageModal.pageNumber} • Chapter {assembledPageModal.chapterNumber}
+                    </span>
+                  </h2>
+                  <p className="text-[11px] text-slate-400">{assembledPageModal.title}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => downloadDataUrl(assembledPageModal.pageImageObj, `manga_c${assembledPageModal.chapterNumber}_p${assembledPageModal.pageNumber}.jpg`)}
+                  className="flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer active:scale-95"
+                >
+                  <Download className="h-4 w-4" />
+                  <span>Download JPG</span>
+                </button>
+
+                <button
+                  onClick={() => handleCopyAssembledImage(assembledPageModal.pageImageObj)}
+                  className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer active:scale-95"
+                  title="Copy assembled image to clipboard"
+                >
+                  <Copy className="h-4 w-4 text-amber-400" />
+                  <span>Copy</span>
+                </button>
+
+                <button
+                  onClick={handleExportChapterZip}
+                  disabled={isExportingZip}
+                  className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer active:scale-95"
+                >
+                  {isExportingZip ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Layers className="h-4 w-4" />}
+                  <span>Export Chapter (ZIP)</span>
+                </button>
+
+                <button
+                  onClick={() => setAssembledPageModal(null)}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body - Image Preview */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-950 flex flex-col items-center justify-center">
+              <div className="relative border-8 border-black rounded-2xl overflow-hidden shadow-2xl max-w-2xl w-full bg-white">
+                <img
+                  src={assembledPageModal.pageImageObj}
+                  alt={`Assembled Page ${assembledPageModal.pageNumber}`}
+                  className="w-full h-auto object-contain"
+                />
+              </div>
+              <p className="text-[10px] text-slate-400 font-mono mt-3 text-center">
+                High-Resolution (2.5x DPI) Canvas Snapshot • Typography & Speech Bubbles Vector-Overlay Locked
+              </p>
             </div>
           </div>
         </div>
