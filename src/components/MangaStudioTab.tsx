@@ -543,99 +543,62 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
   };
 
   const getPanelLayoutInfo = (index: number, totalCount: number, templateId: string) => {
-    if (templateId === 'WEBTOON_STRIP') {
-      return {
-        className: 'col-span-12',
-        style: { height: `${(96 / totalCount).toFixed(1)}%` }
-      };
-    }
-    
-    if (templateId === 'YONKOMA_4_PANEL') {
-      return {
-        className: 'col-span-12',
-        style: { height: '23.3%' }
-      };
-    }
-    
-    if (templateId === 'CINEMATIC_2_PANEL') {
-      return {
-        className: 'col-span-12',
-        style: { height: '48.2%' }
-      };
-    }
-    
-    if (templateId === 'DRAMATIC_3_PANEL') {
-      if (index === 0) {
-        return {
-          className: 'col-span-12',
-          style: { height: '41%' }
-        };
-      } else if (index === 1) {
-        return {
-          className: 'col-span-7',
-          style: { height: '54.5%' }
-        };
-      } else {
-        return {
-          className: 'col-span-5',
-          style: { height: '54.5%' }
-        };
-      }
+    // Ensure at least 3 panels scientifically
+    const count = Math.max(3, totalCount);
+
+    if (templateId === 'GOLDEN_RATIO_SPREAD') {
+      // Golden ratio asymmetric spread (4 panels)
+      if (index === 0) return { className: 'col-span-12', style: { height: '34%' } };
+      if (index === 1) return { className: 'col-span-7', style: { height: '62%' } };
+      if (index === 2) return { className: 'col-span-5', style: { height: '62%' } };
+      return { className: 'col-span-12', style: { height: '32%' } };
     }
 
-    // Fallback to GRID_ADAPTIVE:
-    if (totalCount === 1) {
-      return {
-        className: 'col-span-12',
-        style: { height: '100%' }
-      };
-    } else if (totalCount === 2) {
-      return {
-        className: 'col-span-12',
-        style: { height: '48.2%' }
-      };
-    } else if (totalCount === 3) {
-      if (index === 0) {
-        return {
-          className: 'col-span-12',
-          style: { height: '39%' }
-        };
-      } else {
-        return {
-          className: 'col-span-6',
-          style: { height: '56.5%' }
-        };
-      }
-    } else if (totalCount === 4) {
-      if (index === 0) {
-        return {
-          className: 'col-span-12',
-          style: { height: '27.5%' }
-        };
-      } else if (index === 1 || index === 2) {
-        return {
-          className: 'col-span-6',
-          style: { height: '31.5%' }
-        };
-      } else {
-        return {
-          className: 'col-span-12',
-          style: { height: '31.5%' }
-        };
-      }
+    if (templateId === 'MANGA_MASTER_ASYMMETRIC') {
+      // Asymmetric master flow (5 panels)
+      if (index === 0) return { className: 'col-span-5', style: { height: '28%' } };
+      if (index === 1) return { className: 'col-span-7', style: { height: '28%' } };
+      if (index === 2) return { className: 'col-span-12', style: { height: '38%' } };
+      if (index === 3) return { className: 'col-span-6', style: { height: '30%' } };
+      return { className: 'col-span-6', style: { height: '30%' } };
+    }
+
+    if (templateId === 'DRAMATIC_3_PANEL') {
+      // Dramatic Tri-Focal (3 panels)
+      if (index === 0) return { className: 'col-span-12', style: { height: '42%' } };
+      if (index === 1) return { className: 'col-span-8', style: { height: '54%' } };
+      return { className: 'col-span-4', style: { height: '54%' } };
+    }
+
+    if (templateId === 'CINEMATIC_RHYTHM_4_PANEL') {
+      // Cinematic rhythm (4 panels)
+      if (index === 0) return { className: 'col-span-12', style: { height: '25%' } };
+      if (index === 1) return { className: 'col-span-6', style: { height: '44%' } };
+      if (index === 2) return { className: 'col-span-6', style: { height: '44%' } };
+      return { className: 'col-span-12', style: { height: '27%' } };
+    }
+
+    if (templateId === 'MOSAIC_SPLIT_5_PANEL' || templateId === 'WEBTOON_STRIP') {
+      // Mosaic split (5 panels)
+      if (index === 0) return { className: 'col-span-12', style: { height: '24%' } };
+      if (index === 1 || index === 2) return { className: 'col-span-6', style: { height: '35%' } };
+      return { className: 'col-span-6', style: { height: '37%' } };
+    }
+
+    // Fallback to GRID_ADAPTIVE (fully filling page height ~97%)
+    if (count === 3) {
+      if (index === 0) return { className: 'col-span-12', style: { height: '38%' } };
+      return { className: 'col-span-6', style: { height: '58%' } };
+    } else if (count === 4) {
+      if (index === 0) return { className: 'col-span-12', style: { height: '28%' } };
+      if (index === 1 || index === 2) return { className: 'col-span-6', style: { height: '35%' } };
+      return { className: 'col-span-12', style: { height: '33%' } };
     } else {
       // 5 or more panels
-      if (index === totalCount - 1 && totalCount % 2 !== 0) {
-        // Last odd panel gets full row
-        return {
-          className: 'col-span-12',
-          style: { height: '31%' }
-        };
+      if (index === count - 1 && count % 2 !== 0) {
+        return { className: 'col-span-12', style: { height: '28%' } };
       }
-      return {
-        className: 'col-span-6',
-        style: { height: `${(90 / Math.ceil(totalCount / 2)).toFixed(1)}%` }
-      };
+      return { className: 'col-span-6', style: { height: `${(96 / Math.ceil(count / 2)).toFixed(1)}%` } };
     }
   };
 
@@ -676,14 +639,16 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
   };
 
   const handleTemplateChange = (templateId: string) => {
-    // Interconnected behavior: calculate target panel counts
-    let targetCount = panels.length;
-    if (templateId === 'YONKOMA_4_PANEL') {
-      targetCount = 4;
-    } else if (templateId === 'DRAMATIC_3_PANEL') {
+    // Interconnected behavior: calculate target panel counts (minimum 3 panels per page)
+    let targetCount = Math.max(3, panels.length);
+    if (templateId === 'DRAMATIC_3_PANEL') {
       targetCount = 3;
+    } else if (templateId === 'GOLDEN_RATIO_SPREAD' || templateId === 'CINEMATIC_RHYTHM_4_PANEL' || templateId === 'YONKOMA_4_PANEL') {
+      targetCount = 4;
+    } else if (templateId === 'MANGA_MASTER_ASYMMETRIC' || templateId === 'MOSAIC_SPLIT_5_PANEL') {
+      targetCount = 5;
     } else if (templateId === 'CINEMATIC_2_PANEL') {
-      targetCount = 2;
+      targetCount = 3; // Enforce minimum 3 panels per page
     }
 
     const adjustedPanels = adjustPanelCount(targetCount, panels);
@@ -1551,11 +1516,11 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                 {[
-                  { id: 'GRID_ADAPTIVE', label: 'Adaptive Grid', desc: 'Flexible layout based on panel count' },
-                  { id: 'WEBTOON_STRIP', label: 'Webtoon Strip', desc: 'Equal height vertical strip layout' },
-                  { id: 'YONKOMA_4_PANEL', label: 'Yonkoma (4 Panels)', desc: 'Classic Japanese vertical 4-panel' },
-                  { id: 'DRAMATIC_3_PANEL', label: 'Dramatic (3 Panels)', desc: 'Asymmetric 3-panel dynamic grid' },
-                  { id: 'CINEMATIC_2_PANEL', label: 'Cinematic (2 Panels)', desc: 'Cinematic 2-panel split format' }
+                  { id: 'GRID_ADAPTIVE', label: 'Adaptive Flow', desc: 'Flexible science-based layout filling page' },
+                  { id: 'GOLDEN_RATIO_SPREAD', label: 'Golden Spread', desc: 'Asymmetric golden ratio 4-panel spread' },
+                  { id: 'MANGA_MASTER_ASYMMETRIC', label: 'Master Asymmetric', desc: 'Dynamic 5-panel master composition' },
+                  { id: 'DRAMATIC_3_PANEL', label: 'Dramatic Tri-Focal', desc: 'Impactful 3-panel focal layout' },
+                  { id: 'CINEMATIC_RHYTHM_4_PANEL', label: 'Cinematic Rhythm', desc: 'Rhythmic 4-panel split flow' }
                 ].map((tpl) => {
                   const isActive = getActivePageTemplate() === tpl.id;
                   return (
