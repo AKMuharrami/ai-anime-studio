@@ -446,6 +446,9 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
     return "";
   });
 
+  const [manualPageCount, setManualPageCount] = useState<number>(3);
+  const [manualPanelsPerPage, setManualPanelsPerPage] = useState<number>(0);
+
   // Manga Storyboard/Panels state
   const [pages, setPages] = useState<MangaPageRecord[]>([]);
   const [activePageIndex, setActivePageIndex] = useState(0);
@@ -546,46 +549,111 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
     setSelectedPanelId(updatedPages[newIndex].panels[0]?.id || '');
   };
 
+  const MANGA_LAYOUT_TEMPLATES = [
+    { id: 'GRID_ADAPTIVE', label: 'Adaptive Flow', desc: 'Flexible science-based layout adapting to active panel count', requiredPanels: null, tag: 'All Counts' },
+    { id: 'SINGLE_PANEL_SPLASH', label: 'Full Splash', desc: '1-Panel full-page dramatic impact splash', requiredPanels: 1, tag: '1 Panel' },
+    { id: 'CINEMATIC_2_PANEL', label: 'Cinematic Dual', desc: '2-Panel horizontal cinematic split', requiredPanels: 2, tag: '2 Panels' },
+    { id: 'VERTICAL_DUO_2_PANEL', label: 'Vertical Duo', desc: '2-Panel side-by-side vertical split', requiredPanels: 2, tag: '2 Panels' },
+    { id: 'DRAMATIC_3_PANEL', label: 'Dramatic Tri-Focal', desc: '3-Panel focal layout (Hero top + split bottom)', requiredPanels: 3, tag: '3 Panels' },
+    { id: 'TRIPLE_STRIP_3_PANEL', label: 'Triple Stack', desc: '3-Panel equal horizontal story strips', requiredPanels: 3, tag: '3 Panels' },
+    { id: 'GOLDEN_RATIO_SPREAD', label: 'Golden Spread', desc: 'Asymmetric golden ratio 4-panel spread', requiredPanels: 4, tag: '4 Panels' },
+    { id: 'CINEMATIC_RHYTHM_4_PANEL', label: 'Cinematic Rhythm', desc: 'Rhythmic 4-panel split flow', requiredPanels: 4, tag: '4 Panels' },
+    { id: 'YONKOMA_4_PANEL', label: 'Yonkoma 4-Strip', desc: 'Classic 4-panel vertical gag/story strip', requiredPanels: 4, tag: '4 Panels' },
+    { id: 'MANGA_MASTER_ASYMMETRIC', label: 'Master Asymmetric', desc: 'Dynamic 5-panel master composition', requiredPanels: 5, tag: '5 Panels' },
+    { id: 'MOSAIC_SPLIT_5_PANEL', label: 'Mosaic Split', desc: 'High-density 5-panel mosaic layout', requiredPanels: 5, tag: '5 Panels' },
+  ];
+
   const getActivePageTemplate = (): string => {
+    let currentId = fallbackTemplate;
     if (pages.length > 0 && pages[activePageIndex]) {
-      return pages[activePageIndex].gridLayoutTemplate || 'GRID_ADAPTIVE';
+      currentId = pages[activePageIndex].gridLayoutTemplate || 'GRID_ADAPTIVE';
     }
-    return fallbackTemplate;
+    const tpl = MANGA_LAYOUT_TEMPLATES.find(t => t.id === currentId);
+    if (tpl && tpl.requiredPanels !== null && tpl.requiredPanels !== panels.length) {
+      return 'GRID_ADAPTIVE';
+    }
+    return currentId;
   };
 
   const getPageRows = (panels: MangaPanel[], templateId: string) => {
-    const count = Math.max(3, panels.length);
     const p = panels;
+    const count = p.length;
 
-    if (templateId === 'DRAMATIC_3_PANEL') {
+    if (templateId === 'SINGLE_PANEL_SPLASH' && count >= 1) {
       return [
-        { height: '42%', rowPanels: [{ panel: p[0] || p[0], width: '100%' }] },
-        { height: '54%', rowPanels: [{ panel: p[1] || p[0], width: '60%' }, { panel: p[2] || p[0], width: '40%' }] }
+        { height: '98%', rowPanels: [{ panel: p[0], width: '100%' }] }
       ];
     }
-    if (templateId === 'GOLDEN_RATIO_SPREAD') {
+    if (templateId === 'CINEMATIC_2_PANEL' && count >= 2) {
       return [
-        { height: '34%', rowPanels: [{ panel: p[0] || p[0], width: '100%' }] },
-        { height: '42%', rowPanels: [{ panel: p[1] || p[0], width: '58%' }, { panel: p[2] || p[0], width: '42%' }] },
-        { height: '22%', rowPanels: [{ panel: p[3] || p[0], width: '100%' }] }
+        { height: '48%', rowPanels: [{ panel: p[0], width: '100%' }] },
+        { height: '48%', rowPanels: [{ panel: p[1], width: '100%' }] }
       ];
     }
-    if (templateId === 'CINEMATIC_RHYTHM_4_PANEL') {
+    if (templateId === 'VERTICAL_DUO_2_PANEL' && count >= 2) {
       return [
-        { height: '26%', rowPanels: [{ panel: p[0] || p[0], width: '100%' }] },
-        { height: '46%', rowPanels: [{ panel: p[1] || p[0], width: '50%' }, { panel: p[2] || p[0], width: '50%' }] },
-        { height: '26%', rowPanels: [{ panel: p[3] || p[0], width: '100%' }] }
+        { height: '96%', rowPanels: [{ panel: p[0], width: '50%' }, { panel: p[1], width: '50%' }] }
       ];
     }
-    if (templateId === 'MANGA_MASTER_ASYMMETRIC') {
+    if (templateId === 'DRAMATIC_3_PANEL' && count >= 3) {
       return [
-        { height: '28%', rowPanels: [{ panel: p[0] || p[0], width: '42%' }, { panel: p[1] || p[0], width: '58%' }] },
-        { height: '36%', rowPanels: [{ panel: p[2] || p[0], width: '100%' }] },
-        { height: '34%', rowPanels: [{ panel: p[3] || p[0], width: '50%' }, { panel: p[4] || p[0], width: '50%' }] }
+        { height: '42%', rowPanels: [{ panel: p[0], width: '100%' }] },
+        { height: '54%', rowPanels: [{ panel: p[1], width: '60%' }, { panel: p[2], width: '40%' }] }
       ];
     }
-    // Fallback / Adaptive Flow
-    if (count === 3) {
+    if (templateId === 'TRIPLE_STRIP_3_PANEL' && count >= 3) {
+      return [
+        { height: '31%', rowPanels: [{ panel: p[0], width: '100%' }] },
+        { height: '31%', rowPanels: [{ panel: p[1], width: '100%' }] },
+        { height: '31%', rowPanels: [{ panel: p[2], width: '100%' }] }
+      ];
+    }
+    if (templateId === 'GOLDEN_RATIO_SPREAD' && count >= 4) {
+      return [
+        { height: '34%', rowPanels: [{ panel: p[0], width: '100%' }] },
+        { height: '42%', rowPanels: [{ panel: p[1], width: '58%' }, { panel: p[2], width: '42%' }] },
+        { height: '22%', rowPanels: [{ panel: p[3], width: '100%' }] }
+      ];
+    }
+    if (templateId === 'CINEMATIC_RHYTHM_4_PANEL' && count >= 4) {
+      return [
+        { height: '26%', rowPanels: [{ panel: p[0], width: '100%' }] },
+        { height: '46%', rowPanels: [{ panel: p[1], width: '50%' }, { panel: p[2], width: '50%' }] },
+        { height: '26%', rowPanels: [{ panel: p[3], width: '100%' }] }
+      ];
+    }
+    if (templateId === 'YONKOMA_4_PANEL' && count >= 4) {
+      return [
+        { height: '23%', rowPanels: [{ panel: p[0], width: '100%' }] },
+        { height: '23%', rowPanels: [{ panel: p[1], width: '100%' }] },
+        { height: '23%', rowPanels: [{ panel: p[2], width: '100%' }] },
+        { height: '23%', rowPanels: [{ panel: p[3], width: '100%' }] }
+      ];
+    }
+    if (templateId === 'MANGA_MASTER_ASYMMETRIC' && count >= 5) {
+      return [
+        { height: '28%', rowPanels: [{ panel: p[0], width: '42%' }, { panel: p[1], width: '58%' }] },
+        { height: '36%', rowPanels: [{ panel: p[2], width: '100%' }] },
+        { height: '34%', rowPanels: [{ panel: p[3], width: '50%' }, { panel: p[4], width: '50%' }] }
+      ];
+    }
+    if (templateId === 'MOSAIC_SPLIT_5_PANEL' && count >= 5) {
+      return [
+        { height: '32%', rowPanels: [{ panel: p[0], width: '35%' }, { panel: p[1], width: '65%' }] },
+        { height: '32%', rowPanels: [{ panel: p[2], width: '100%' }] },
+        { height: '32%', rowPanels: [{ panel: p[3], width: '65%' }, { panel: p[4], width: '35%' }] }
+      ];
+    }
+
+    // Fallback / Adaptive Flow for any panel count
+    if (count <= 1) {
+      return [{ height: '98%', rowPanels: [{ panel: p[0] || p[0], width: '100%' }] }];
+    } else if (count === 2) {
+      return [
+        { height: '48%', rowPanels: [{ panel: p[0], width: '100%' }] },
+        { height: '48%', rowPanels: [{ panel: p[1], width: '100%' }] }
+      ];
+    } else if (count === 3) {
       return [
         { height: '38%', rowPanels: [{ panel: p[0], width: '100%' }] },
         { height: '58%', rowPanels: [{ panel: p[1], width: '50%' }, { panel: p[2], width: '50%' }] }
@@ -642,34 +710,13 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
   };
 
   const handleTemplateChange = (templateId: string) => {
-    // Interconnected behavior: calculate target panel counts (minimum 3 panels per page)
-    let targetCount = Math.max(3, panels.length);
-    if (templateId === 'DRAMATIC_3_PANEL') {
-      targetCount = 3;
-    } else if (templateId === 'GOLDEN_RATIO_SPREAD' || templateId === 'CINEMATIC_RHYTHM_4_PANEL' || templateId === 'YONKOMA_4_PANEL') {
-      targetCount = 4;
-    } else if (templateId === 'MANGA_MASTER_ASYMMETRIC' || templateId === 'MOSAIC_SPLIT_5_PANEL') {
-      targetCount = 5;
-    } else if (templateId === 'CINEMATIC_2_PANEL') {
-      targetCount = 3; // Enforce minimum 3 panels per page
-    }
-
-    const adjustedPanels = adjustPanelCount(targetCount, panels);
-
-    // Update the page's template state
+    // Apply grid layout template to active page without altering or auto-increasing the smartly distributed panels
     const updatedPages = [...pages];
     if (updatedPages[activePageIndex]) {
       updatedPages[activePageIndex].gridLayoutTemplate = templateId;
-      updatedPages[activePageIndex].panels = adjustedPanels;
       setPages(updatedPages);
     } else {
       setFallbackTemplate(templateId);
-    }
-
-    setPanels(adjustedPanels);
-    // Ensure selectedPanelId is valid
-    if (adjustedPanels.length > 0 && !adjustedPanels.some(p => p.id === selectedPanelId)) {
-      setSelectedPanelId(adjustedPanels[0].id);
     }
   };
 
@@ -725,7 +772,9 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
           plot_concept: mangaPlotConcept,
           scope: mangaScope,
           series_title: activeSeries?.title || 'New Manga',
-          archetype: mangaArchetype
+          archetype: mangaArchetype,
+          manual_page_count: manualPageCount,
+          manual_panels_per_page: manualPanelsPerPage
         })
       });
 
@@ -1537,38 +1586,52 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
                   <Layout className="h-4 w-4" />
                   Select Page Layout Template
                 </span>
-                <span className="text-[10px] text-slate-500 font-mono font-bold bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
-                  Active Panels: <span className="text-emerald-400 font-black">{panels.length}</span>
+                <span className="text-[10px] text-slate-500 font-mono font-bold bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800">
+                  Active Page Panels: <span className="text-emerald-400 font-black">{panels.length}</span>
                 </span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                {[
-                  { id: 'GRID_ADAPTIVE', label: 'Adaptive Flow', desc: 'Flexible science-based layout filling page' },
-                  { id: 'GOLDEN_RATIO_SPREAD', label: 'Golden Spread', desc: 'Asymmetric golden ratio 4-panel spread' },
-                  { id: 'MANGA_MASTER_ASYMMETRIC', label: 'Master Asymmetric', desc: 'Dynamic 5-panel master composition' },
-                  { id: 'DRAMATIC_3_PANEL', label: 'Dramatic Tri-Focal', desc: 'Impactful 3-panel focal layout' },
-                  { id: 'CINEMATIC_RHYTHM_4_PANEL', label: 'Cinematic Rhythm', desc: 'Rhythmic 4-panel split flow' }
-                ].map((tpl) => {
-                  const isActive = getActivePageTemplate() === tpl.id;
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                {MANGA_LAYOUT_TEMPLATES.map((tpl) => {
+                  const isCompatible = tpl.requiredPanels === null || tpl.requiredPanels === panels.length;
+                  const isActive = getActivePageTemplate() === tpl.id && isCompatible;
+
                   return (
                     <button
                       key={tpl.id}
                       type="button"
+                      disabled={!isCompatible}
                       onClick={() => handleTemplateChange(tpl.id)}
-                      title={tpl.desc}
-                      className={`text-[10px] py-2 px-1 border-2 rounded-xl transition-all cursor-pointer flex flex-col items-center justify-center text-center font-bold font-mono h-12 leading-tight ${
+                      title={isCompatible 
+                        ? `${tpl.label}: ${tpl.desc}` 
+                        : `${tpl.label} requires ${tpl.requiredPanels} panels (Active page has ${panels.length} panels)`}
+                      className={`text-[10px] py-2 px-1.5 border-2 rounded-xl transition-all flex flex-col items-center justify-between text-center font-bold font-mono h-14 leading-tight relative overflow-hidden ${
                         isActive 
-                          ? 'bg-rose-500/15 border-rose-500 text-rose-400 shadow-lg shadow-rose-500/5' 
-                          : 'bg-slate-900/60 border-slate-800/80 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                          ? 'bg-rose-500/15 border-rose-500 text-rose-300 shadow-lg shadow-rose-500/10 cursor-pointer' 
+                          : isCompatible
+                          ? 'bg-slate-900/80 border-slate-800 text-slate-300 hover:text-white hover:border-slate-700 cursor-pointer'
+                          : 'bg-slate-950/40 border-slate-900/60 text-slate-600 opacity-40 cursor-not-allowed select-none'
                       }`}
                     >
-                      <span>{tpl.label}</span>
+                      <span className="truncate w-full px-1">{tpl.label}</span>
+                      <span className={`text-[8px] uppercase tracking-wider font-mono font-extrabold px-1.5 py-0.5 rounded ${
+                        isActive 
+                          ? 'bg-rose-500 text-white' 
+                          : isCompatible 
+                          ? 'bg-slate-800 text-slate-400' 
+                          : 'bg-slate-900 text-slate-700'
+                      }`}>
+                        {tpl.tag}
+                      </span>
                     </button>
                   );
                 })}
               </div>
-              <p className="text-[9px] text-slate-400 font-mono leading-relaxed bg-slate-900/30 p-2 rounded-xl border border-slate-900">
-                💡 <span className="text-rose-400 font-bold">Interconnected Rule</span>: Selecting a locked-panel template (Yonkoma 4, Dramatic 3, Cinematic 2) instantly adjusts the page panel count, adding or pruning panels automatically.
+
+              <p className="text-[9px] text-slate-400 font-mono leading-relaxed bg-slate-900/40 p-2.5 rounded-xl border border-slate-900 flex items-center justify-between">
+                <span>
+                  💡 <span className="text-rose-400 font-bold">Panel-Linked Matching</span>: Layout options directly match your page's panel count ({panels.length} panels). Incompatible layout options are grayed out. <span className="text-emerald-400 font-bold">Adaptive Flow</span> supports any panel count!
+                </span>
               </p>
             </div>
 
@@ -1765,6 +1828,37 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
                          {arch}
                        </button>
                     ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 pt-2">
+                  <div className="space-y-1">
+                    <label className="block text-[11px] font-semibold text-slate-300">Target Page Count</label>
+                    <select
+                      value={manualPageCount}
+                      onChange={(e) => setManualPageCount(parseInt(e.target.value, 10))}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-xs text-slate-100 focus:outline-none focus:border-rose-500"
+                    >
+                      <option value={1}>1 Page (Splash/One-Shot)</option>
+                      <option value={3}>3 Pages (Standard Chapter)</option>
+                      <option value={5}>5 Pages (Extended Arc)</option>
+                      <option value={8}>8 Pages (Full Issue)</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-[11px] font-semibold text-slate-300">Panels Per Page</label>
+                    <select
+                      value={manualPanelsPerPage}
+                      onChange={(e) => setManualPanelsPerPage(parseInt(e.target.value, 10))}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-xs text-slate-100 focus:outline-none focus:border-rose-500"
+                    >
+                      <option value={0}>Auto / Smart Pacing</option>
+                      <option value={2}>2 Panels / Page</option>
+                      <option value={3}>3 Panels / Page</option>
+                      <option value={4}>4 Panels / Page</option>
+                      <option value={5}>5 Panels / Page</option>
+                    </select>
                   </div>
                 </div>
 

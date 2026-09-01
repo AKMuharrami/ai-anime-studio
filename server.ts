@@ -1214,7 +1214,7 @@ Rules:
 // Endpoint: Manga Storyboard Blueprint Generator (DeepSeek-R1)
 app.post("/api/manga/blueprint", async (req, res) => {
   try {
-    const { plot_concept, scope = 'single_chapter', series_title = 'New Manga', archetype = 'Classic Seinen' } = req.body;
+    const { plot_concept, scope = 'single_chapter', series_title = 'New Manga', archetype = 'Classic Seinen', manual_page_count, manual_panels_per_page } = req.body;
 
     if (!plot_concept) {
       return res.status(400).json({ error: "Plot concept is required" });
@@ -1225,19 +1225,25 @@ app.post("/api/manga/blueprint", async (req, res) => {
       return res.status(403).json({ shariahViolation: true, error: shariahCheck.reason });
     }
 
-    const pageCount = scope === 'single_page' ? 1 : (scope === 'full_story' ? 5 : 3);
+    const pageCount = manual_page_count ? parseInt(manual_page_count, 10) : (scope === 'single_page' ? 1 : (scope === 'full_story' ? 5 : 3));
+    const panelsPerPg = manual_panels_per_page ? parseInt(manual_panels_per_page, 10) : 0;
+    
     let blueprintData: any = null;
 
     if (DEEPSEEK_API_KEY) {
       try {
-        const prompt = `You are the DeepSeek-R1 Manga Storyboard Engine. Deconstruct this manga concept into a structured storyboard consisting of ${pageCount} pages.
+        const panelCountInstruction = panelsPerPg > 0 
+          ? `Each page must have exactly ${panelsPerPg} panels.` 
+          : `Each page should have 3 to 5 smartly distributed panels based on narrative pacing.`;
+
+        const prompt = `You are the DeepSeek-R1 Manga Storyboard Engine. Deconstruct this manga concept into a structured storyboard consisting of exactly ${pageCount} pages.
 Plot Concept: ${plot_concept}
 Series: ${series_title}
 Scope: ${scope}
 Archetype: ${archetype}
 
 Rules:
-- Layout Logic: Return exactly ${pageCount} pages. Each page should have 1-5 panels.
+- Layout Logic: Return exactly ${pageCount} pages. ${panelCountInstruction}
 - Archetype Influence: Use the ${archetype} style for panel sizing and density.
 - Layout Diversity: Mix layouts. Use 'col-span-12 row-span-2' for big moments, 'col-span-6 row-span-1' for quick interactions.
 - Grid: Assume a 12-column grid.
