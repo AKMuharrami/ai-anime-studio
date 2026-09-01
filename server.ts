@@ -1248,7 +1248,8 @@ Rules:
 - Layout Diversity: Mix layouts. Use 'col-span-12 row-span-2' for big moments, 'col-span-6 row-span-1' for quick interactions.
 - Grid: Assume a 12-column grid.
 - Bubble Style: Choose from 'oval', 'burst', 'thought', 'whisper'.
-- Characters: Use names from the plot.
+- Characters: Limit 'charactersPresent' to AT MOST 2 or 3 primary focal characters per panel. Do NOT include more than 3 characters in 'charactersPresent'. Describe extra crowd/passersby in actionPrompt as "unfocused background silhouettes".
+- Action Prompts: Focus purely on poses, actions, spatial positioning (e.g. '[Left Stage: Char A] [Right Stage: Char B]'), and camera angles. DO NOT write age numbers (e.g., '18-year-old', 'aged 30') or general physical facial descriptions in actionPrompt as these clash with character model sheets.
 - Output strictly valid JSON matching this schema:
 {
   "pages": [
@@ -1258,10 +1259,10 @@ Rules:
         {
           "panelIndex": number,
           "layoutClass": "string (tailwind classes like col-span-12 row-span-2 h-80)",
-          "charactersPresent": ["string"],
+          "charactersPresent": ["string (max 2 or 3 character names)"],
           "expression": "string",
           "equipment": "string",
-          "actionPrompt": "string (visual description for Gekiga manga generation)",
+          "actionPrompt": "string (action & pose description without age numbers or clashing facial descriptions)",
           "speechText": "string",
           "bubbleStyle": "string",
           "bubbleX": number (0-100),
@@ -3109,6 +3110,20 @@ async function uploadStitchedImage(buffer: Buffer, req: any): Promise<string> {
   return publicUrl;
 }
 
+// Helper function to sanitize panel action prompts and remove conflicting age declarations / facial descriptions
+function cleanActionPromptForRendering(prompt: string): string {
+  if (!prompt) return '';
+  let cleaned = prompt
+    .replace(/\b\d{1,2}\s*(-|\s*)yo\b/gi, '')
+    .replace(/\b\d{1,2}\s*(-|\s*)years?\s*(-|\s*)old\b/gi, '')
+    .replace(/\baged?\s*\d{1,2}\b/gi, '')
+    .replace(/\b(teenager|adolescent|elderly|middle-aged)\b/gi, '')
+    .replace(/\b(young boy|young girl|old man|old woman)\b/gi, 'character');
+
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+  return cleaned;
+}
+
 // ============================================================================
 // 6.1 DEDICATED MANGA PANEL BLENDER (STEP 3: Qwen Multi-Reference Compositor)
 // ============================================================================
@@ -3139,6 +3154,13 @@ app.post("/api/manga/render-panel", async (req, res) => {
     }
 
     const genre = detectGenreWorld(world_setting, series_title);
+
+    // Sanitize prompt text from explicit ages or clashing physical traits
+    const sanitizedActionPrompt = cleanActionPromptForRendering(action_prompt);
+
+    // Limit active focal characters per panel to max 3 for model consistency
+    const focalCharacters = Array.isArray(characters_present) ? characters_present.slice(0, 3) : [];
+    const excessCharacters = Array.isArray(characters_present) && characters_present.length > 3 ? characters_present.slice(3) : [];
 
     // Build prioritized multi-reference array: Character Turnarounds first, Background Plate last
     const charReferences: string[] = [];
@@ -3171,32 +3193,40 @@ app.post("/api/manga/render-panel", async (req, res) => {
       finalReferences.push(bgReference);
     }
 
-    // Format highly specific character continuity instructions dynamically mapped to Reference Index positions
+    // Format highly specific character continuity & spatial anchoring instructions dynamically mapped to Reference Index positions
     let charDirective = '';
     if (charReferences.length > 1 && processedCharReferences.length === 1) {
-      const descriptions = characters_present.map((name, idx) => {
-        if (idx === 0) return `${name} is shown on the left half of Reference 1`;
-        if (idx === characters_present.length - 1 && characters_present.length > 1) return `${name} is shown on the right half of Reference 1`;
-        return `${name} is shown in the middle section of Reference 1`;
+      const descriptions = focalCharacters.map((name, idx) => {
+        if (idx === 0) return `[LEFT STAGE: ${name}] (Referenced on the left side of Reference 1)`;
+        if (idx === focalCharacters.length - 1 && focalCharacters.length > 1) return `[RIGHT STAGE: ${name}] (Referenced on the right side of Reference 1)`;
+        return `[CENTER STAGE: ${name}] (Referenced in the center section of Reference 1)`;
       });
       
-      charDirective = `FEATURING CANON CHARACTERS: [${characters_present.join(', ')}]. Note: Reference 1 is a composite turnaround sheet showing these characters side-by-side horizontally. ${descriptions.join(', ')}. Maintain absolute 100% strict fidelity to their anatomy, face shapes, age representations, exact hairstyles, eye shapes, and authentic ${genre === 'ANCIENT' ? 'traditional period warrior attire' : 'costume'} matching their respective section of the turnaround reference. Under no circumstances should characters look different or be blended together. Place them in the panel according to the action: ${action_prompt}.`;
-    } else if (finalReferences.length > 0 && Array.isArray(characters_present) && characters_present.length > 0) {
-      const mappings = characters_present.map((name, idx) => {
+      charDirective = `FEATURING CANON CHARACTERS: [${focalCharacters.join(', ')}]. ${descriptions.join(', ')}. ${excessCharacters.length > 0 ? `(Extra background figures [${excessCharacters.join(', ')}] rendered as distant unfocused background silhouettes).` : ''}
+SPATIAL BINDING & AGE FIDELITY DIRECTIVE:
+1. Maintain strict 100% fidelity to the character turnaround models in Reference 1.
+2. DO NOT alter character facial geometry, age representation, eye shape, or costumes from Reference 1. Defer all character face anatomy, hair, age representation, and clothing strictly to Reference 1 turnaround sheets.
+3. Enforce clean spatial separation between characters according to their stage position ([LEFT STAGE], [CENTER STAGE], [RIGHT STAGE]). Do NOT blend character features together.`;
+    } else if (finalReferences.length > 0 && focalCharacters.length > 0) {
+      const mappings = focalCharacters.map((name, idx) => {
         const charUrl = char_sheet_urls[idx] || char_sheet_urls[0];
+        let refIndex = 1;
         if (charUrl) {
-          const refIndex = finalReferences.indexOf(charUrl) + 1;
-          if (refIndex > 0) {
-            return `${name} (Reference ${refIndex})`;
-          }
+          const foundIdx = finalReferences.indexOf(charUrl);
+          if (foundIdx >= 0) refIndex = foundIdx + 1;
         }
-        return `${name} (Reference 1)`;
+        const stagePos = idx === 0 ? '[LEFT STAGE]' : (idx === 1 && focalCharacters.length === 2 ? '[RIGHT STAGE]' : (idx === 1 ? '[CENTER STAGE]' : '[RIGHT STAGE]'));
+        return `${stagePos} ${name} (Reference ${refIndex})`;
       });
 
-      charDirective = `FEATURING CANON CHARACTERS: [${mappings.join(', ')}]. Maintain absolute 100% strict fidelity to character anatomy, face shapes, exact hairstyles, eye shapes, age representation, and authentic ${genre === 'ANCIENT' ? 'traditional period warrior attire' : 'costume'} matching their respective reference model turnaround sheets. Under no circumstances should characters look different from their referenced sheets. NO modern clothes on historical characters.`;
+      charDirective = `FEATURING CANON CHARACTERS: [${mappings.join(', ')}]. ${excessCharacters.length > 0 ? `(Extra background figures [${excessCharacters.join(', ')}] rendered as distant unfocused background silhouettes).` : ''}
+SPATIAL BINDING & AGE FIDELITY DIRECTIVE:
+1. Maintain strict 100% fidelity to character turnaround models in their respective Reference sheets.
+2. DO NOT alter character facial geometry, age representation, eye shape, or costumes from the references. Defer all character face anatomy, hair, age, and clothing strictly to their reference turnaround sheets.
+3. Enforce clean spatial separation between characters according to their stage position ([LEFT STAGE], [CENTER STAGE], [RIGHT STAGE]). Do NOT blend character features together.`;
     } else if (finalReferences.length > 0) {
       const mappings = finalReferences.map((_, idx) => `Character ${idx + 1} (Reference ${idx + 1})`);
-      charDirective = `FEATURING CANON CHARACTERS: [${mappings.join(', ')}]. Maintain absolute 100% strict fidelity to character anatomy, face shapes, exact hairstyles, eye shapes, and costumes matching their respective reference model turnaround sheets.`;
+      charDirective = `FEATURING CANON CHARACTERS: [${mappings.join(', ')}]. Maintain absolute 100% strict fidelity to character anatomy, face shapes, exact hairstyles, eye shapes, age representations, and costumes matching their respective reference model turnaround sheets.`;
     } else {
       charDirective = `Focus on high-tension character action and cinematic manga framing.`;
     }
@@ -3212,11 +3242,11 @@ app.post("/api/manga/render-panel", async (req, res) => {
     const multiRefPrompt = `[JAPANESE SEINEN GEKIGA MANGA PANEL COMPOSITION - TRUE MULTI-REFERENCE BLEND]
 ${locationDirective}
 ${charDirective}
-PANEL ACTION & STAGING: ${action_prompt}.
+PANEL ACTION & STAGING: ${sanitizedActionPrompt}.
 CAMERA & FRAMING: ${camera_angle}, ${framing}. Character Expression: ${expression || 'intense focus'}. Equipment: ${equipment || 'standard'}.
 ARTISTIC STYLE & SPECIFICATIONS: Masterpiece authentic Japanese Seinen Gekiga manga art. Pure monochrome black and white ink lineart with crisp halftone screentones, deep black ink wash shadows, dynamic cross-hatch shading (kakeami), and dramatic panel depth. NO color, NO photorealism, NO soft 3D rendering.`;
 
-    console.log(`[Manga Panel Blender] Rendering panel with ${finalReferences.length} references (Genre: ${genre}). Primary Reference (Ref 1): ${finalReferences[0] || 'none'}`);
+    console.log(`[Manga Panel Blender] Rendering panel with ${finalReferences.length} references (Genre: ${genre}, Focal Chars: ${focalCharacters.length}). Primary Reference (Ref 1): ${finalReferences[0] || 'none'}`);
 
     const qwenResult = await executeQwenImageEdit({
       prompt: multiRefPrompt,

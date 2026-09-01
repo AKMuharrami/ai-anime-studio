@@ -30,7 +30,8 @@ import {
   Download,
   Share2,
   Trash2,
-  Plus
+  Plus,
+  Users
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { Scene, Character, Environment, Episode, Series } from '../types';
@@ -826,6 +827,10 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
     if (exists) {
       updated = current.filter(c => c.toLowerCase() !== cleanName.toLowerCase());
     } else {
+      if (current.length >= 3) {
+        alert("Pipeline Constraint: Maximum 3 focal characters per panel enforced for model consistency and age fidelity. Additional background characters can be described in the panel action prompt.");
+        return;
+      }
       updated = [...current, cleanName];
     }
     
@@ -892,7 +897,7 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
     });
 
     if (detected.length > 0) {
-      const merged = Array.from(new Set([...(panel.charactersPresent || []), ...detected]));
+      const merged = Array.from(new Set([...(panel.charactersPresent || []), ...detected])).slice(0, 3);
       const matchedFirst = characters.find(c => c.name.toLowerCase() === merged[0].toLowerCase());
       handleUpdatePanel(panel.id, {
         charactersPresent: merged,
@@ -2822,11 +2827,24 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
                         );
                       } else if (taggedChars.length > 0) {
                         return (
-                          <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center gap-2">
-                            <ShieldCheck className="h-4 w-4 text-emerald-400 shrink-0" />
-                            <span className="text-[10px] font-mono text-emerald-300">
-                              All {taggedChars.length} tagged characters are turnaround locked. Ready for consistent multi-character rendering!
-                            </span>
+                          <div className="space-y-2">
+                            <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center gap-2">
+                              <ShieldCheck className="h-4 w-4 text-emerald-400 shrink-0" />
+                              <span className="text-[10px] font-mono text-emerald-300">
+                                All {taggedChars.length} tagged character{taggedChars.length > 1 ? 's are' : ' is'} turnaround locked. Ready for consistent rendering!
+                              </span>
+                            </div>
+                            {taggedChars.length >= 2 && (
+                              <div className="p-2.5 bg-cyan-500/10 border border-cyan-500/30 rounded-xl space-y-1 font-mono">
+                                <div className="flex items-center gap-1.5 text-cyan-300 font-bold text-[11px]">
+                                  <Users className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
+                                  <span>Multi-Character Rendering Notice ({taggedChars.length} Focal Characters)</span>
+                                </div>
+                                <p className="text-[9px] text-cyan-200/80 leading-relaxed">
+                                  Spatial stage anchoring ([LEFT STAGE], [RIGHT STAGE]) is active. Note: Multi-character interactions require precise spatial alignment; <strong>1 render attempt may not always be enough</strong> to isolate all poses perfectly. If character features blend, click <strong>Re-render Panel</strong> or adjust camera angle.
+                                </p>
+                              </div>
+                            )}
                           </div>
                         );
                       }

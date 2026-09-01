@@ -294,6 +294,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onClose 
                   <li><strong className="text-white">Subscription Tiers:</strong> Monthly and annual creator plans grant recurring generation credits for scripts, voiceovers, character turnaround sheets, and manga panels.</li>
                   <li><strong className="text-white">Credit Top-Ups:</strong> Additional generation credits can be purchased on-demand via secure checkout. Unused credits roll over according to active subscription terms.</li>
                   <li><strong className="text-white">Refund Policy:</strong> All subscription fees and credit token purchases are final and non-refundable once credited or consumed in generation pipelines.</li>
+                  <li><strong className="text-cyan-300">Multi-Character Panel Disclaimers:</strong> AI generative diffusion models rendering 2 or 3 characters in a single manga panel utilize spatial stage anchoring to enforce visual consistency. Due to generative AI space-binding characteristics, rendering multi-character panels may require 2 or more generation attempts (re-renders or re-rolls) to achieve complete pose separation and eliminate feature blending. All generation credits consumed during panel re-renders are non-refundable.</li>
                 </ul>
               </div>
 
