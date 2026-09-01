@@ -1740,6 +1740,39 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
     const bubbleWidth = maxLineLen * 7.5 + 40;
     const bubbleHeight = textLines.length * 15 + 40;
 
+    const clampedScale = Math.min(panel.bubbleScale, 1.3);
+
+    // Keep bubble coordinates strictly inside the panel area to avoid border clipping.
+    let safeX = panel.bubbleX;
+    let safeY = panel.bubbleY;
+
+    // Boundary safety: if panel is 1-indexed third panel (e.g., sharing the bottom row and is narrow at 40% width)
+    const isNarrowPanel = panel.panelIndex === 3;
+    if (isNarrowPanel) {
+      safeX = Math.max(20, Math.min(safeX, 80));
+      safeY = Math.max(20, Math.min(safeY, 80));
+    } else {
+      safeX = Math.max(12, Math.min(safeX, 88));
+      safeY = Math.max(12, Math.min(safeY, 88));
+    }
+
+    // Smart border compensation translation:
+    // When the coordinate approaches the edge, smoothly shift the origin alignment away from -50%
+    // so the bubble remains perfectly padded inside the panel borders instead of spilling out.
+    let translateX = -50;
+    if (safeX < 35) {
+      translateX = -50 * (safeX / 35);
+    } else if (safeX > 65) {
+      translateX = -50 - 50 * ((safeX - 65) / 35);
+    }
+
+    let translateY = -50;
+    if (safeY < 35) {
+      translateY = -50 * (safeY / 35);
+    } else if (safeY > 65) {
+      translateY = -50 - 50 * ((safeY - 65) / 35);
+    }
+
     const pathD = () => {
       if (panel.bubbleStyle === 'burst') {
         // Starburst path for intense action
@@ -1755,11 +1788,11 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
 
     return (
       <div 
-        className="absolute pointer-events-none select-none drop-shadow-lg"
+        className="absolute pointer-events-none select-none drop-shadow-lg z-30"
         style={{
-          left: `${panel.bubbleX}%`,
-          top: `${panel.bubbleY}%`,
-          transform: `translate(-50%, -50%) scale(${panel.bubbleScale})`,
+          left: `${safeX}%`,
+          top: `${safeY}%`,
+          transform: `translate(${translateX}%, ${translateY}%) scale(${clampedScale})`,
           maxWidth: '180px',
         }}
       >
@@ -3522,15 +3555,15 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
 
                     <div className="flex items-center justify-between pt-2">
                       <span>Bubble Scaling Scale:</span>
-                      <span className="font-bold text-rose-400">{activePanel.bubbleScale}x</span>
+                      <span className="font-bold text-rose-400">{Math.min(activePanel.bubbleScale, 1.3)}x</span>
                     </div>
                     <input
                       type="range"
                       min="5"
-                      max="20"
+                      max="13"
                       step="1"
-                      value={activePanel.bubbleScale * 10}
-                      onChange={(e) => handleUpdatePanel(activePanel.id, { bubbleScale: parseInt(e.target.value) / 10 })}
+                      value={Math.min(activePanel.bubbleScale, 1.3) * 10}
+                      onChange={(e) => handleUpdatePanel(activePanel.id, { bubbleScale: Math.min(parseInt(e.target.value) / 10, 1.3) })}
                       className="w-full accent-rose-500"
                     />
                   </div>
