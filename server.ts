@@ -28,6 +28,39 @@ if (!fs.existsSync(tempUploadsDir)) {
 }
 app.use('/temp-uploads', express.static(tempUploadsDir));
 
+// ============================================================================
+// Shariah Compliance Guard Middleware & Helper
+// ============================================================================
+function checkServerShariahViolation(prompt: string): { isViolation: boolean; reason: string } {
+  const lower = (prompt || '').toLowerCase();
+  const nudityTerms = ['naked', 'nude', 'boobs', 'breast', 'cleavage', 'topless', 'strip', 'undress', 'bare chest', 'genitals'];
+  const sexualizationTerms = ['tight clothes', 'tight fitting', 'form-fitting', 'revealing attire', 'sensual', 'provocative', 'lewd', 'loli', 'lolicon', 'hentai', 'ecchi', 'seductive', 'spread legs', 'erotic'];
+  const maleAreaTerms = ['navel exposed', 'shirtless man stomach', 'thong', 'underwear showing'];
+
+  for (const term of nudityTerms) {
+    if (lower.includes(term)) {
+      return { isViolation: true, reason: `Shariah Violation Detected: Nudity concept ("${term}") is prohibited.` };
+    }
+  }
+  for (const term of sexualizationTerms) {
+    if (lower.includes(term)) {
+      return { isViolation: true, reason: `Shariah Violation Detected: Sexualization or immodest attire ("${term}") is prohibited.` };
+    }
+  }
+  for (const term of maleAreaTerms) {
+    if (lower.includes(term)) {
+      return { isViolation: true, reason: `Shariah Violation Detected: Inappropriate body exposure ("${term}") violates Shariah modesty guidelines.` };
+    }
+  }
+  return { isViolation: false, reason: '' };
+}
+
+app.post("/api/shariah/check", (req, res) => {
+  const { prompt = '' } = req.body;
+  const result = checkServerShariahViolation(prompt);
+  res.json(result);
+});
+
 // Mount auth routes
 app.use('/api/auth', authRoutes);
 
@@ -1140,6 +1173,11 @@ app.post("/api/manga/blueprint", async (req, res) => {
 
     if (!plot_concept) {
       return res.status(400).json({ error: "Plot concept is required" });
+    }
+
+    const shariahCheck = checkServerShariahViolation(plot_concept);
+    if (shariahCheck.isViolation) {
+      return res.status(403).json({ shariahViolation: true, error: shariahCheck.reason });
     }
 
     const pageCount = scope === 'single_page' ? 1 : (scope === 'full_story' ? 5 : 3);
@@ -2489,6 +2527,11 @@ app.post("/api/assets/environments/generate", async (req, res) => {
       scene_context
     } = req.body;
 
+    const shariahCheck = checkServerShariahViolation((location_name || '') + " " + (style_descriptor || ''));
+    if (shariahCheck.isViolation) {
+      return res.status(403).json({ shariahViolation: true, error: shariahCheck.reason });
+    }
+
     const environmentId = `env_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     
     const prompt = buildThemedEnvironmentPrompt({
@@ -2563,6 +2606,11 @@ app.post("/api/assets/characters/turnaround", async (req, res) => {
 
     const charName = (name || 'Character').trim();
     const rawDesc = (visual_descriptor || '').trim();
+
+    const shariahCheck = checkServerShariahViolation(charName + " " + rawDesc);
+    if (shariahCheck.isViolation) {
+      return res.status(403).json({ shariahViolation: true, error: shariahCheck.reason });
+    }
 
     // In-code background prompt elevation: elevate vague/brief descriptions into comprehensive consistency specifications
     const elevatedDescriptor = synthesizeDetailedDescriptor(
@@ -3032,6 +3080,11 @@ app.post("/api/manga/render-panel", async (req, res) => {
 
     if (!action_prompt) {
       return res.status(400).json({ error: "action_prompt is required to render a manga panel" });
+    }
+
+    const shariahCheck = checkServerShariahViolation(action_prompt + " " + expression + " " + equipment);
+    if (shariahCheck.isViolation) {
+      return res.status(403).json({ shariahViolation: true, error: shariahCheck.reason });
     }
 
     const genre = detectGenreWorld(world_setting, series_title);

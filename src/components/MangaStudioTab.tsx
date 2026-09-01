@@ -107,6 +107,17 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
   const [showChapterPreview, setShowChapterPreview] = useState(false);
   const [fallbackTemplate, setFallbackTemplate] = useState<string>('GRID_ADAPTIVE');
 
+  const [mangaPageFooterText, setMangaPageFooterText] = useState(
+    `- PAGE 01 / 01 (MODESTY GUIDELINES NEURAL MANGA) -`
+  );
+  const [isEditingFooter, setIsEditingFooter] = useState(false);
+
+  // Vaults & Galleries Modals
+  const [isCharacterVaultOpen, setIsCharacterVaultOpen] = useState(false);
+  const [isEnvironmentVaultOpen, setIsEnvironmentVaultOpen] = useState(false);
+  const [isPanelVaultOpen, setIsPanelVaultOpen] = useState(false);
+  const [isChaptersGalleryOpen, setIsChaptersGalleryOpen] = useState(false);
+
 
   // New Generation States inside Manga Studio
   const [step2Tab, setStep2Tab] = useState<'characters' | 'environments'>('characters');
@@ -1319,10 +1330,34 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 w-full md:w-auto shrink-0 border-t md:border-t-0 pt-4 md:pt-0 border-slate-800">
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto shrink-0 border-t md:border-t-0 pt-4 md:pt-0 border-slate-800">
+          <button
+            onClick={() => setIsCharacterVaultOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-semibold transition-all"
+            title="Smart Character & Environment Vault"
+          >
+            <UserCheck className="h-3.5 w-3.5 text-amber-400" />
+            <span>Character Vault</span>
+          </button>
+          <button
+            onClick={() => setIsPanelVaultOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-semibold transition-all"
+            title="Smart Panel Storage Vault"
+          >
+            <ImageIcon className="h-3.5 w-3.5 text-emerald-400" />
+            <span>Panel Vault</span>
+          </button>
+          <button
+            onClick={() => setIsChaptersGalleryOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-semibold transition-all"
+            title="Chapters, Pages & Stories Gallery"
+          >
+            <Layers className="h-3.5 w-3.5 text-indigo-400" />
+            <span>Chapters Gallery</span>
+          </button>
           <button
             onClick={onBackToHome}
-            className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-semibold transition-all"
+            className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-semibold transition-all"
           >
             <ArrowLeft className="h-3.5 w-3.5 text-rose-400" />
             <span>Studio Hub</span>
@@ -1331,7 +1366,7 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
           <button
             onClick={handleAssemblePage}
             disabled={isAssemblingPage}
-            className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white text-xs font-bold shadow-md shadow-rose-600/30 transition-all active:scale-95 cursor-pointer"
+            className="flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white text-xs font-bold shadow-md shadow-rose-600/30 transition-all active:scale-95 cursor-pointer"
           >
             {isAssemblingPage ? (
               <RefreshCw className="h-3.5 w-3.5 animate-spin" />
@@ -1543,9 +1578,32 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
               className="bg-white border-8 border-black rounded-xl p-4 md:p-6 shadow-2xl relative w-full aspect-[1/1.58] max-h-[92vh] mx-auto overflow-hidden flex flex-col justify-between"
             >
               
-              {/* PAGE NUMBER ACCENT */}
-              <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 text-[10px] font-black text-black font-mono tracking-widest uppercase pointer-events-none z-10">
-                - PAGE {(activePageIndex + 1).toString().padStart(2, '0')} / {pages.length.toString().padStart(2, '0')} (MODESTY GUIDELINES NEURAL MANGA) -
+              {/* PAGE NUMBER ACCENT (EDITABLE & MOVED DOWN) */}
+              <div className="absolute bottom-1.5 left-1/2 transform -translate-x-1/2 text-[10px] font-black text-black font-mono tracking-widest uppercase z-20 flex items-center gap-1.5 group/footer">
+                {isEditingFooter ? (
+                  <input
+                    type="text"
+                    value={mangaPageFooterText}
+                    onChange={(e) => setMangaPageFooterText(e.target.value)}
+                    onBlur={() => setIsEditingFooter(false)}
+                    autoFocus
+                    className="bg-slate-100 border border-black text-black text-[10px] px-2 py-0.5 font-mono rounded text-center outline-none shadow-sm"
+                  />
+                ) : (
+                  <span 
+                    onClick={() => setIsEditingFooter(true)}
+                    className="cursor-pointer hover:bg-slate-200/90 px-2 py-0.5 rounded transition-colors"
+                    title="Click to edit manga page footer text"
+                  >
+                    {mangaPageFooterText}
+                  </span>
+                )}
+                <button
+                  onClick={() => setIsEditingFooter(!isEditingFooter)}
+                  className="opacity-0 group-hover/footer:opacity-100 text-[9px] bg-black text-white px-1.5 py-0.5 rounded transition-opacity"
+                >
+                  Edit
+                </button>
               </div>
 
               {/* GRID PANEL WRAPPER */}
@@ -2960,7 +3018,7 @@ def generate_manga_panel(panel_prompt, char_sheet, bg_layout, speech_text, outpu
                 </button>
                 <button 
                   onClick={() => setShowChapterPreview(false)}
-                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 p-2.5 rounded-xl transition-all"
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 p-2.5 rounded-xl transition-all cursor-pointer"
                 >
                   Close
                 </button>
@@ -2987,6 +3045,226 @@ def generate_manga_panel(panel_prompt, char_sheet, bg_layout, speech_text, outpu
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SMART CHARACTER & ENVIRONMENT VAULT MODAL */}
+      {isCharacterVaultOpen && (
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 sm:p-8 overflow-hidden backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-5xl h-full flex flex-col shadow-2xl relative overflow-hidden animate-fadeIn">
+            <div className="flex items-center justify-between p-6 border-b border-slate-800 bg-slate-900/80">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 bg-amber-500/20 rounded-xl flex items-center justify-center text-amber-400 border border-amber-500/30">
+                  <UserCheck className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white font-['Cinzel',serif]">Smart Character & Environment Vault</h2>
+                  <p className="text-xs text-slate-400">Access and select saved character reference sheets and environment backgrounds across projects</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsCharacterVaultOpen(false)}
+                className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                Close Vault
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 space-y-8 bg-slate-950">
+              <div>
+                <h3 className="text-sm font-bold text-amber-400 font-mono tracking-wider uppercase mb-4">Saved Characters ({characters.length})</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {characters.map(c => (
+                    <div key={c.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between gap-3">
+                      <div>
+                        <div className="h-36 rounded-xl bg-slate-950 overflow-hidden mb-3 border border-slate-800 flex items-center justify-center">
+                          {c.image_url ? (
+                            <img src={c.image_url} alt={c.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <UserCheck className="h-10 w-10 text-slate-700" />
+                          )}
+                        </div>
+                        <h4 className="text-sm font-bold text-white">{c.name}</h4>
+                        <p className="text-xs text-slate-400 mt-1 line-clamp-2">{c.description}</p>
+                      </div>
+                      <button 
+                        onClick={() => {
+                          setMangaCharName(c.name);
+                          setMangaCharDescriptor(c.description);
+                          setIsCharacterVaultOpen(false);
+                        }}
+                        className="w-full py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-bold transition-all"
+                      >
+                        Select into Project
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-bold text-emerald-400 font-mono tracking-wider uppercase mb-4">Saved Environments ({environments.length})</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {environments.map(e => (
+                    <div key={e.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between gap-3">
+                      <div>
+                        <div className="h-36 rounded-xl bg-slate-950 overflow-hidden mb-3 border border-slate-800 flex items-center justify-center">
+                          {e.image_url ? (
+                            <img src={e.image_url} alt={e.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <ImageIcon className="h-10 w-10 text-slate-700" />
+                          )}
+                        </div>
+                        <h4 className="text-sm font-bold text-white">{e.name}</h4>
+                        <p className="text-xs text-slate-400 mt-1 line-clamp-2">{e.description}</p>
+                      </div>
+                      <button 
+                        onClick={() => {
+                          setMangaEnvLocation(e.name);
+                          setMangaEnvStyle(e.description);
+                          setIsCharacterVaultOpen(false);
+                        }}
+                        className="w-full py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-bold transition-all"
+                      >
+                        Select into Project
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SMART PANEL STORAGE VAULT MODAL */}
+      {isPanelVaultOpen && (
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 sm:p-8 overflow-hidden backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-5xl h-full flex flex-col shadow-2xl relative overflow-hidden animate-fadeIn">
+            <div className="flex items-center justify-between p-6 border-b border-slate-800 bg-slate-900/80">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 bg-emerald-500/20 rounded-xl flex items-center justify-center text-emerald-400 border border-emerald-500/30">
+                  <ImageIcon className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white font-['Cinzel',serif]">Smart Panel Storage Vault</h2>
+                  <p className="text-xs text-slate-400">All generated manga panels across pages and chapters securely archived</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsPanelVaultOpen(false)}
+                className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                Close Vault
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-950">
+              {panels.map((p, idx) => (
+                <div key={p.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between gap-3">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                        Panel {idx + 1}
+                      </span>
+                      <span className="text-[10px] font-mono text-slate-500">{p.bubbleStyle}</span>
+                    </div>
+                    <div className="h-40 rounded-xl bg-slate-950 overflow-hidden mb-3 border border-slate-800 flex items-center justify-center">
+                      {p.imageUrl ? (
+                        <img src={p.imageUrl} alt={`Panel ${idx + 1}`} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="text-xs text-slate-600 font-mono">Not Rendered Yet</div>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-300 line-clamp-3 italic">"{p.actionPrompt}"</p>
+                  </div>
+                  {p.imageUrl && (
+                    <a 
+                      href={p.imageUrl} 
+                      download={`panel_${idx + 1}.png`} 
+                      className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold text-center transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      <span>Download Panel</span>
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CHAPTERS, PAGES & STORIES GALLERY MODAL */}
+      {isChaptersGalleryOpen && (
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 sm:p-8 overflow-hidden backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-5xl h-full flex flex-col shadow-2xl relative overflow-hidden animate-fadeIn">
+            <div className="flex items-center justify-between p-6 border-b border-slate-800 bg-slate-900/80">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 bg-indigo-500/20 rounded-xl flex items-center justify-center text-indigo-400 border border-indigo-500/30">
+                  <Layers className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white font-['Cinzel',serif]">Chapters, Pages & Stories Gallery</h2>
+                  <p className="text-xs text-slate-400">Access, save, edit, and switch between your chapters and story arcs at any time</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsChaptersGalleryOpen(false)}
+                className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                Close Gallery
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-950">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between gap-4">
+                  <div>
+                    <span className="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                      Active Series: {activeSeries?.title || 'Untitled Series'}
+                    </span>
+                    <h3 className="text-lg font-bold text-white mt-3 font-['Cinzel',serif]">{activeEpisode?.title || 'Chapter 1: Genesis'}</h3>
+                    <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+                      Route: <span className="text-amber-300 font-mono">{activeEpisode?.route || 'MANGA_CHAPTER'}</span> • Scope: <span className="text-emerald-400 font-mono">{mangaScope}</span>
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => {
+                        setShowChapterPreview(true);
+                        setIsChaptersGalleryOpen(false);
+                      }}
+                      className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <BookOpen className="h-4 w-4" />
+                      <span>View Chapter Pages ({historyPages.length})</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between gap-4">
+                  <div>
+                    <span className="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                      Chapter Management
+                    </span>
+                    <h3 className="text-lg font-bold text-white mt-3 font-['Cinzel',serif]">Chapter {currentChapter} Archival</h3>
+                    <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+                      Quickly export chapter canvases or jump between chapters.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => {
+                        setCurrentChapter(c => c + 1);
+                        setIsChaptersGalleryOpen(false);
+                      }}
+                      className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition-all"
+                    >
+                      Create New Chapter ({currentChapter + 1})
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

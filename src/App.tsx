@@ -31,7 +31,13 @@ export default function App() {
 
   // Navigation View: 'home' | 'studio'
   const [currentView, setCurrentView] = useState<'home' | 'studio'>('home');
-  const [homepageMode, setHomepageMode] = useState<'anime' | 'manga'>('manga');
+  const [homepageMode, setHomepageMode] = useState<'anime' | 'manga'>(() => {
+    return (localStorage.getItem('ais_homepage_mode') as 'anime' | 'manga') || 'manga';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('ais_homepage_mode', homepageMode);
+  }, [homepageMode]);
 
   // Global State
   const [user, setUser] = useState(INITIAL_USER);
@@ -397,7 +403,13 @@ export default function App() {
       <Navbar
         currentView={currentView}
         onNavigateHome={() => setCurrentView('home')}
-        onNavigateStudio={() => setCurrentView('studio')}
+        onNavigateStudio={() => {
+          if (homepageMode === 'manga') {
+            const mangaEp = episodes.find(e => e.route.startsWith('MANGA_') && e.series_id === activeSeries?.id) || episodes.find(e => e.route.startsWith('MANGA_')) || activeEpisode;
+            if (mangaEp) setActiveEpisode(mangaEp);
+          }
+          setCurrentView('studio');
+        }}
         seriesList={seriesList}
         activeSeries={activeSeries}
         onSelectSeries={handleSelectSeries}
