@@ -1540,7 +1540,7 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
             {/* MANGA GENTLEMAN GRID WORKSPACE (PORTRAIT ASPECT RATIO PRESERVED) */}
             <div 
               id="manga-page-grid" 
-              className="bg-white border-8 border-black rounded-xl p-4 md:p-6 shadow-2xl relative w-full aspect-[1/1.414] max-h-[85vh] mx-auto overflow-hidden flex flex-col justify-between"
+              className="bg-white border-8 border-black rounded-xl p-4 md:p-6 shadow-2xl relative w-full aspect-[1/1.58] max-h-[92vh] mx-auto overflow-hidden flex flex-col justify-between"
             >
               
               {/* PAGE NUMBER ACCENT */}
