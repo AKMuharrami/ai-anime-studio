@@ -542,63 +542,55 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
     return fallbackTemplate;
   };
 
-  const getPanelLayoutInfo = (index: number, totalCount: number, templateId: string) => {
-    // Ensure at least 3 panels scientifically
-    const count = Math.max(3, totalCount);
-
-    if (templateId === 'GOLDEN_RATIO_SPREAD') {
-      // Golden ratio asymmetric spread (4 panels)
-      if (index === 0) return { className: 'col-span-12', style: { height: '34%' } };
-      if (index === 1) return { className: 'col-span-7', style: { height: '62%' } };
-      if (index === 2) return { className: 'col-span-5', style: { height: '62%' } };
-      return { className: 'col-span-12', style: { height: '32%' } };
-    }
-
-    if (templateId === 'MANGA_MASTER_ASYMMETRIC') {
-      // Asymmetric master flow (5 panels)
-      if (index === 0) return { className: 'col-span-5', style: { height: '28%' } };
-      if (index === 1) return { className: 'col-span-7', style: { height: '28%' } };
-      if (index === 2) return { className: 'col-span-12', style: { height: '38%' } };
-      if (index === 3) return { className: 'col-span-6', style: { height: '30%' } };
-      return { className: 'col-span-6', style: { height: '30%' } };
-    }
+  const getPageRows = (panels: MangaPanel[], templateId: string) => {
+    const count = Math.max(3, panels.length);
+    const p = panels;
 
     if (templateId === 'DRAMATIC_3_PANEL') {
-      // Dramatic Tri-Focal (3 panels)
-      if (index === 0) return { className: 'col-span-12', style: { height: '42%' } };
-      if (index === 1) return { className: 'col-span-8', style: { height: '54%' } };
-      return { className: 'col-span-4', style: { height: '54%' } };
+      return [
+        { height: '42%', rowPanels: [{ panel: p[0] || p[0], width: '100%' }] },
+        { height: '54%', rowPanels: [{ panel: p[1] || p[0], width: '60%' }, { panel: p[2] || p[0], width: '40%' }] }
+      ];
     }
-
+    if (templateId === 'GOLDEN_RATIO_SPREAD') {
+      return [
+        { height: '34%', rowPanels: [{ panel: p[0] || p[0], width: '100%' }] },
+        { height: '42%', rowPanels: [{ panel: p[1] || p[0], width: '58%' }, { panel: p[2] || p[0], width: '42%' }] },
+        { height: '22%', rowPanels: [{ panel: p[3] || p[0], width: '100%' }] }
+      ];
+    }
     if (templateId === 'CINEMATIC_RHYTHM_4_PANEL') {
-      // Cinematic rhythm (4 panels)
-      if (index === 0) return { className: 'col-span-12', style: { height: '25%' } };
-      if (index === 1) return { className: 'col-span-6', style: { height: '44%' } };
-      if (index === 2) return { className: 'col-span-6', style: { height: '44%' } };
-      return { className: 'col-span-12', style: { height: '27%' } };
+      return [
+        { height: '26%', rowPanels: [{ panel: p[0] || p[0], width: '100%' }] },
+        { height: '46%', rowPanels: [{ panel: p[1] || p[0], width: '50%' }, { panel: p[2] || p[0], width: '50%' }] },
+        { height: '26%', rowPanels: [{ panel: p[3] || p[0], width: '100%' }] }
+      ];
     }
-
-    if (templateId === 'MOSAIC_SPLIT_5_PANEL' || templateId === 'WEBTOON_STRIP') {
-      // Mosaic split (5 panels)
-      if (index === 0) return { className: 'col-span-12', style: { height: '24%' } };
-      if (index === 1 || index === 2) return { className: 'col-span-6', style: { height: '35%' } };
-      return { className: 'col-span-6', style: { height: '37%' } };
+    if (templateId === 'MANGA_MASTER_ASYMMETRIC') {
+      return [
+        { height: '28%', rowPanels: [{ panel: p[0] || p[0], width: '42%' }, { panel: p[1] || p[0], width: '58%' }] },
+        { height: '36%', rowPanels: [{ panel: p[2] || p[0], width: '100%' }] },
+        { height: '34%', rowPanels: [{ panel: p[3] || p[0], width: '50%' }, { panel: p[4] || p[0], width: '50%' }] }
+      ];
     }
-
-    // Fallback to GRID_ADAPTIVE (fully filling page height ~97%)
+    // Fallback / Adaptive Flow
     if (count === 3) {
-      if (index === 0) return { className: 'col-span-12', style: { height: '38%' } };
-      return { className: 'col-span-6', style: { height: '58%' } };
+      return [
+        { height: '38%', rowPanels: [{ panel: p[0], width: '100%' }] },
+        { height: '58%', rowPanels: [{ panel: p[1], width: '50%' }, { panel: p[2], width: '50%' }] }
+      ];
     } else if (count === 4) {
-      if (index === 0) return { className: 'col-span-12', style: { height: '28%' } };
-      if (index === 1 || index === 2) return { className: 'col-span-6', style: { height: '35%' } };
-      return { className: 'col-span-12', style: { height: '33%' } };
+      return [
+        { height: '28%', rowPanels: [{ panel: p[0], width: '100%' }] },
+        { height: '40%', rowPanels: [{ panel: p[1], width: '50%' }, { panel: p[2], width: '50%' }] },
+        { height: '28%', rowPanels: [{ panel: p[3], width: '100%' }] }
+      ];
     } else {
-      // 5 or more panels
-      if (index === count - 1 && count % 2 !== 0) {
-        return { className: 'col-span-12', style: { height: '28%' } };
-      }
-      return { className: 'col-span-6', style: { height: `${(96 / Math.ceil(count / 2)).toFixed(1)}%` } };
+      return [
+        { height: '26%', rowPanels: [{ panel: p[0], width: '100%' }] },
+        { height: '35%', rowPanels: [{ panel: p[1], width: '50%' }, { panel: p[2], width: '50%' }] },
+        { height: '35%', rowPanels: p.slice(3, count).map(panel => ({ panel, width: `${100 / Math.max(1, count - 3)}%` })) }
+      ];
     }
   };
 
@@ -1557,76 +1549,83 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
               </div>
 
               {/* GRID PANEL WRAPPER */}
-              <div className="grid grid-cols-12 gap-3 md:gap-4 relative h-full flex-1 mb-2">
-                {panels.map((panel, index) => {
-                  const isSelected = panel.id === selectedPanelId;
-                  const layoutInfo = getPanelLayoutInfo(index, panels.length, getActivePageTemplate());
-                  return (
-                    <div
-                      key={panel.id}
-                      id={`manga-panel-${panel.id}`}
-                      onClick={() => handleSelectPanel(panel.id)}
-                      className={`relative overflow-hidden group cursor-pointer border-4 transition-all duration-200 ${
-                        layoutInfo.className
-                      } ${
-                        isSelected 
-                          ? 'border-rose-500 ring-4 ring-rose-500/20 shadow-2xl scale-[1.01] z-10' 
-                          : 'border-black hover:border-slate-800'
-                      }`}
-                      style={layoutInfo.style}
-                    >
-                      {/* Save Panel Button */}
-                      {panel.imageUrl && activeWorkflowStep >= 3 && (
-                        <div className="absolute top-2 right-2 z-20 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeletePanel(panel.id);
-                            }}
-                            className="bg-rose-600/60 hover:bg-rose-600 text-white p-2 rounded-lg backdrop-blur-sm"
-                            title="Delete this panel"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={(e) => handleSavePanel(panel.id, index, e)}
-                            className="bg-black/60 hover:bg-black/90 text-white p-2 rounded-lg backdrop-blur-sm"
-                            title="Save this panel"
-                          >
-                            <Download className="h-4 w-4 text-emerald-400" />
-                          </button>
-                        </div>
-                      )}
-                      {/* Black and white filter applied to match true retro Gekiga shading */}
-                      <img 
-                        src={panel.imageUrl} 
-                        alt={`Manga panel ${panel.panelIndex}`}
-                        className="w-full h-full object-cover grayscale contrast-125 brightness-95"
-                        referrerPolicy="no-referrer"
-                      />
+              <div className="flex flex-col h-full justify-between gap-2 md:gap-3 relative flex-1 mb-6">
+                {getPageRows(panels, getActivePageTemplate()).map((row, rowIndex) => (
+                  <div
+                    key={rowIndex}
+                    className="flex flex-row gap-2 md:gap-3 w-full"
+                    style={{ height: row.height }}
+                  >
+                    {row.rowPanels.map(({ panel, width }) => {
+                      if (!panel) return null;
+                      const isSelected = panel.id === selectedPanelId;
+                      const globalIndex = panels.findIndex(p => p.id === panel.id);
+                      return (
+                        <div
+                          key={panel.id}
+                          id={`manga-panel-${panel.id}`}
+                          onClick={() => handleSelectPanel(panel.id)}
+                          className={`relative overflow-hidden group cursor-pointer border-4 transition-all duration-200 h-full ${
+                            isSelected 
+                              ? 'border-rose-500 ring-4 ring-rose-500/20 shadow-2xl scale-[1.005] z-10' 
+                              : 'border-black hover:border-slate-800'
+                          }`}
+                          style={{ width }}
+                        >
+                          {/* Save Panel Button */}
+                          {panel.imageUrl && activeWorkflowStep >= 3 && (
+                            <div className="absolute top-2 right-2 z-20 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeletePanel(panel.id);
+                                }}
+                                className="bg-rose-600/60 hover:bg-rose-600 text-white p-2 rounded-lg backdrop-blur-sm"
+                                title="Delete this panel"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={(e) => handleSavePanel(panel.id, globalIndex, e)}
+                                className="bg-black/60 hover:bg-black/90 text-white p-2 rounded-lg backdrop-blur-sm"
+                                title="Save this panel"
+                              >
+                                <Download className="h-4 w-4 text-emerald-400" />
+                              </button>
+                            </div>
+                          )}
+                          {/* Black and white filter applied to match true retro Gekiga shading */}
+                          <img 
+                            src={panel.imageUrl} 
+                            alt={`Manga panel ${panel.panelIndex}`}
+                            className="w-full h-full object-cover grayscale contrast-125 brightness-95"
+                            referrerPolicy="no-referrer"
+                          />
 
-                      {/* Screen tone texture overlay simulation */}
-                      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-transparent via-transparent to-black/10 mix-blend-multiply pointer-events-none" />
+                          {/* Screen tone texture overlay simulation */}
+                          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-transparent via-transparent to-black/10 mix-blend-multiply pointer-events-none" />
 
-                      {/* Panel Number Badge */}
-                      <div className="absolute top-2 left-2 bg-black text-white text-[10px] font-black font-mono h-5 w-5 flex items-center justify-center rounded">
-                        {panel.panelIndex}
-                      </div>
-
-                      {/* Render Speech bubble Overlay */}
-                      {renderSpeechBubbleSVG(panel)}
-
-                      {/* Selected Panel Accent */}
-                      {isSelected && (
-                        <div className="absolute inset-0 border-2 border-rose-500 pointer-events-none">
-                          <div className="absolute bottom-2 right-2 bg-rose-500 text-white font-mono text-[9px] font-bold px-2 py-0.5 rounded tracking-wider uppercase shadow-md">
-                            Selected Panel {panel.panelIndex}
+                          {/* Panel Number Badge */}
+                          <div className="absolute top-2 left-2 bg-black text-white text-[10px] font-black font-mono h-5 w-5 flex items-center justify-center rounded">
+                            {panel.panelIndex}
                           </div>
+
+                          {/* Render Speech bubble Overlay */}
+                          {renderSpeechBubbleSVG(panel)}
+
+                          {/* Selected Panel Accent */}
+                          {isSelected && (
+                            <div className="absolute inset-0 border-2 border-rose-500 pointer-events-none">
+                              <div className="absolute bottom-2 right-2 bg-rose-500 text-white font-mono text-[9px] font-bold px-2 py-0.5 rounded tracking-wider uppercase shadow-md">
+                                Selected Panel {panel.panelIndex}
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
+                      );
+                    })}
+                  </div>
+                ))}
               </div>
 
             </div>
