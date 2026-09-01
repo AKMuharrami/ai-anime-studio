@@ -323,7 +323,7 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
   };
 
   const [mangaPageFooterText, setMangaPageFooterText] = useState(
-    `- MANGA DRAFT • PAGE 01 -`
+    `- PAGE 01 / 01 (MODESTY GUIDELINES NEURAL MANGA) -`
   );
   const [isEditingFooter, setIsEditingFooter] = useState(false);
 
@@ -1734,161 +1734,49 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
   };
 
   // Render SVG speech bubbles on top of the image to look like a real manga page
-  const renderSpeechBubbleSVG = (panel: MangaPanel, pagePanelsCount = 3) => {
-    const text = panel.speechText?.trim() || "";
-    
-    // Smart filter to identify if there is genuinely dialogue or not.
-    // Standard placeholders like "Dialogue goes here..." or "(No Speech)" should be ignored.
-    const isPlaceholder = !text || 
-                          text.toLowerCase() === "dialogue goes here..." || 
-                          text.toLowerCase() === "dialogue goes here" ||
-                          text.toLowerCase() === "(dialogue)" ||
-                          text.toLowerCase() === "dialogue" ||
-                          text.toLowerCase() === "(no speech)" ||
-                          text.toLowerCase() === "(silence)" ||
-                          text.toLowerCase() === "silence" ||
-                          text === "...";
+  const renderSpeechBubbleSVG = (panel: MangaPanel) => {
+    const textLines = panel.speechText.match(/.{1,18}(\s|$)/g) || [panel.speechText];
+    const maxLineLen = Math.max(...textLines.map(l => l.length));
+    const bubbleWidth = maxLineLen * 7.5 + 40;
+    const bubbleHeight = textLines.length * 15 + 40;
 
-    if (isPlaceholder) {
-      return null;
-    }
-
-    // Dynamic scale factor based on number of panels on the page
-    // Less panels = larger images = larger bubble scale is fine
-    // More panels = smaller panel boxes = bubble scale MUST be smaller to prevent obscuring the panel art
-    let baseScale = panel.bubbleScale || 1.0;
-    
-    if (pagePanelsCount >= 4) {
-      baseScale *= 0.82; // Balanced scale to fit neatly in tight grid squares
-    } else if (pagePanelsCount === 3) {
-      baseScale *= 0.88; // Perfectly scaled for 3-panel configurations
-    } else if (pagePanelsCount === 2) {
-      baseScale *= 0.94; // Optimized for 2-panel configuration
-    } else {
-      baseScale *= 1.0; // 1-panel full-page splash
-    }
-
-    // Proportional scale floor to guarantee ultimate legibility and stop microscopic text sizes
-    baseScale = Math.max(0.85, baseScale);
-
-    // Professional oval-shaping wrapping algorithm
-    // Stacks words beautifully in a diamond/oval shape to conform perfectly to Gekiga comic margins
-    const getOvalBalancedLines = (str: string): string[] => {
-      const words = str.split(/\s+/);
-      if (words.length <= 1) return [str];
-      if (words.length === 2) return [words[0], words[1]];
-      
-      const totalChars = str.length;
-      let targetLines = 2;
-      if (totalChars <= 12) targetLines = 1;
-      else if (totalChars <= 28) targetLines = 2;
-      else if (totalChars <= 55) targetLines = 3;
-      else targetLines = 4;
-      
-      const lines: string[][] = Array.from({ length: targetLines }, () => []);
-      const avgCharsPerLine = totalChars / targetLines;
-      
-      const getLineWeight = (idx: number, total: number) => {
-        if (total <= 2) return 1.0;
-        const mid = (total - 1) / 2;
-        const distFromMid = Math.abs(idx - mid);
-        return 1.3 - (distFromMid * 0.35); // wider at the middle, narrower at the edges
-      };
-      
-      let wordIdx = 0;
-      for (let l = 0; l < targetLines; l++) {
-        const weight = getLineWeight(l, targetLines);
-        const targetLen = avgCharsPerLine * weight;
-        let currentLen = 0;
-        
-        while (wordIdx < words.length) {
-          const nextWord = words[wordIdx];
-          const addedLen = nextWord.length + (currentLen > 0 ? 1 : 0);
-          
-          if (currentLen === 0 || (currentLen + addedLen <= targetLen + 4) || l === targetLines - 1) {
-            lines[l].push(nextWord);
-            currentLen += addedLen;
-            wordIdx++;
-          } else {
-            break;
-          }
-        }
+    const pathD = () => {
+      if (panel.bubbleStyle === 'burst') {
+        // Starburst path for intense action
+        return `M 0,0 L 15,-5 L 25,-15 L 45,-10 L 60,-25 L 85,-15 L 105,-20 L 115,-5 L 135,0 L 125,15 L 140,25 L 120,35 L 130,55 L 110,50 L 95,65 L 80,50 L 60,60 L 50,45 L 30,50 L 20,35 L -5,30 L 5,15 Z`;
+      } else if (panel.bubbleStyle === 'thought') {
+        // Thought bubble clouds
+        return `M 10,15 A 12,12 0 0,1 30,10 A 15,15 0 0,1 60,8 A 12,12 0 0,1 80,12 A 12,12 0 0,1 90,25 A 10,10 0 0,1 85,40 A 15,15 0 0,1 65,45 A 12,12 0 0,1 35,46 A 12,12 0 0,1 15,40 A 10,10 0 0,1 10,25 Z`;
+      } else {
+        // Oval bubble with tail
+        return `M 10,15 C 10,5 30,5 50,5 C 70,5 90,5 90,15 C 90,25 70,25 50,25 C 40,25 35,32 30,25 C 20,25 10,25 10,15 Z`;
       }
-      return lines.map(lineWords => lineWords.join(" ")).filter(Boolean);
     };
-
-    const textLines = getOvalBalancedLines(text);
-    const isShort = text.length <= 10;
-    const isSingleLine = textLines.length === 1;
 
     return (
       <div 
-        className="absolute pointer-events-none select-none z-30 drop-shadow-md animate-fadeIn"
+        className="absolute pointer-events-none select-none drop-shadow-lg"
         style={{
           left: `${panel.bubbleX}%`,
           top: `${panel.bubbleY}%`,
-          transform: `translate(-50%, -50%) scale(${baseScale})`,
-          maxWidth: isShort ? '120px' : '185px',
+          transform: `translate(-50%, -50%) scale(${panel.bubbleScale})`,
+          maxWidth: '180px',
         }}
       >
-        <div className="relative flex flex-col items-center justify-center">
-          {/* Main Bubble body */}
-          {panel.bubbleStyle === 'burst' ? (
-            // Aggressive, world-class starburst action bubble
-            <div 
-              className="bg-white text-black font-extrabold tracking-wide uppercase text-center flex flex-col items-center justify-center border-4 border-black relative shadow-lg"
-              style={{
-                clipPath: 'polygon(0% 15%, 15% 15%, 25% 0%, 35% 15%, 50% 5%, 65% 15%, 75% 0%, 85% 15%, 100% 15%, 90% 35%, 100% 50%, 90% 65%, 100% 80%, 85% 80%, 75% 100%, 65% 80%, 50% 95%, 35% 80%, 25% 100%, 15% 80%, 0% 80%, 10% 65%, 0% 50%, 10% 35%)',
-                padding: '20px 24px',
-                fontSize: '11.5px',
-                fontFamily: 'system-ui, -apple-system, sans-serif',
-                lineHeight: '1.25',
-                width: 'max-content',
-                minWidth: '95px',
-                minHeight: '70px',
-              }}
-            >
-              {textLines.map((line, i) => (
-                <div key={i} className="whitespace-nowrap font-black">{line}</div>
-              ))}
-            </div>
-          ) : (
-            // Classic professional rounded ellipse dialog
-            <div 
-              className={`bg-white text-black font-bold tracking-wide uppercase text-center flex flex-col items-center justify-center select-none shadow-md border-[3px] border-black ${
-                panel.bubbleStyle === 'whisper' 
-                  ? 'border-dashed border-slate-500 rounded-[50%/40%] text-slate-800' 
-                  : 'rounded-[50%/45%]'
-              }`}
-              style={{
-                padding: isShort 
-                  ? (isSingleLine ? '8px 16px' : '10px 18px') 
-                  : '14px 22px',
-                fontSize: isShort ? '11px' : '12px',
-                fontFamily: 'system-ui, -apple-system, sans-serif',
-                lineHeight: '1.25',
-                width: 'max-content',
-                minWidth: isShort ? '65px' : '110px',
-                minHeight: isShort ? '40px' : '60px',
-              }}
-            >
-              {textLines.map((line, i) => (
-                <div key={i} className="whitespace-nowrap">{line}</div>
-              ))}
-              
-              {/* Dialogue Bubble tail pointing down towards speaker */}
-              {panel.bubbleStyle === 'oval' && (
-                <div className="absolute bottom-[-10px] left-[35%] w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-t-[10px] border-t-white before:absolute before:bottom-[1px] before:left-[-10px] before:w-0 before:h-0 before:border-l-[10px] before:border-l-transparent before:border-r-[10px] before:border-r-transparent before:border-t-[10px] before:border-t-black before:z-[-1]"></div>
-              )}
-            </div>
+        <div className="relative bg-white text-black text-[9px] md:text-xs font-bold leading-tight border-2 border-black rounded-full px-3 py-2 text-center select-none font-sans max-w-[150px] shadow-sm">
+          {panel.speechText}
+          
+          {/* Bubble Tail */}
+          {panel.bubbleStyle === 'oval' && (
+            <div className="absolute bottom-[-8px] left-[35%] w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[8px] border-t-white before:absolute before:bottom-[1px] before:left-[-8px] before:w-0 before:before:h-0 before:border-l-[8px] before:border-l-transparent before:border-r-[8px] before:border-r-transparent before:border-t-[8px] before:border-t-black before:z-[-1]"></div>
           )}
-
-          {/* Thought trail circles descending from the main bubble */}
+          {panel.bubbleStyle === 'burst' && (
+            <div className="absolute -inset-1 border-2 border-dashed border-red-500 rounded-full pointer-events-none opacity-40"></div>
+          )}
           {panel.bubbleStyle === 'thought' && (
-            <div className="absolute bottom-[-16px] left-[45%] flex flex-col gap-1 items-center">
-              <div className="w-3.5 h-3.5 bg-white border-2 border-black rounded-full shadow-sm"></div>
-              <div className="w-2 h-2 bg-white border-2 border-black rounded-full shadow-sm"></div>
-              <div className="w-1 h-1 bg-white border border-black rounded-full shadow-sm"></div>
+            <div className="absolute bottom-[-14px] left-[45%] flex flex-col gap-1 items-center">
+              <div className="w-2.5 h-2.5 bg-white border border-black rounded-full"></div>
+              <div className="w-1.5 h-1.5 bg-white border border-black rounded-full"></div>
             </div>
           )}
         </div>
@@ -2258,7 +2146,7 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
             >
               
               {/* PAGE NUMBER ACCENT (EDITABLE & MOVED DOWN) */}
-              <div className="absolute bottom-1.5 left-1/2 transform -translate-x-1/2 text-[10px] font-black text-black font-mono tracking-widest uppercase z-20 flex items-center gap-1.5 group/footer whitespace-nowrap">
+              <div className="absolute bottom-1.5 left-1/2 transform -translate-x-1/2 text-[10px] font-black text-black font-mono tracking-widest uppercase z-20 flex items-center gap-1.5 group/footer">
                 {isEditingFooter ? (
                   <input
                     type="text"
@@ -2348,7 +2236,7 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
                           </div>
 
                           {/* Render Speech bubble Overlay */}
-                          {renderSpeechBubbleSVG(panel, panels.length)}
+                          {renderSpeechBubbleSVG(panel)}
 
                           {/* Selected Panel Accent */}
                           {isSelected && (
