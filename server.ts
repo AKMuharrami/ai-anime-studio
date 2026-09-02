@@ -1664,13 +1664,15 @@ app.post("/api/manga/blueprint", async (req, res) => {
           ? `Each page must have exactly ${panelsPerPg} panels.` 
           : `Each page should have 3 to 5 smartly distributed panels based on narrative pacing.`;
 
-        const prompt = `You are the DeepSeek-R1 Manga Storyboard Engine. Deconstruct this manga concept into a structured storyboard consisting of exactly ${pageCount} pages.
+        const prompt = `You are the DeepSeek-R1 Manga Storyboard Engine. Deconstruct this manga concept (which may be a long novel chapter or plot synopsis) into a highly summarized, visually-paced storyboard consisting of exactly ${pageCount} pages.
 Plot Concept: ${plot_concept}
 Series: ${series_title}
 Scope: ${scope}
 Archetype: ${archetype}
 
 Rules:
+- Novel Summarization pacing: If the plot concept is a full novel chapter or dense text, summarize and condense it smartly. A manga is a visual medium where drawings speak more than words. Select only the key dramatic beats, turning points, and actions.
+- Concise Dialogue Word Limit: Keep 'speechText' extremely concise, sharp, and impactful. The dialogue inside speechText MUST NOT exceed 12 to 15 words per panel under any circumstance. Short, punchy sentences are required to prevent text from overflowing speech bubble boundaries.
 - Layout Logic: Return exactly ${pageCount} pages. ${panelCountInstruction}
 - Archetype Influence: Use the ${archetype} style for panel sizing and density.
 - Layout Diversity: Mix layouts. Use 'col-span-12 row-span-2' for big moments, 'col-span-6 row-span-1' for quick interactions.
