@@ -94,10 +94,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   const steps = activeEpisode?.route === 'MANGA_STUDIO' ? [
     { id: 'manga', num: 'C', label: 'AI Manga Studio', sub: 'Qwen-Image-Edit & Pillow Pipeline' }
   ] : [
-    { id: 'script', num: 1, label: 'Screenplay Parser', sub: 'DeepSeek-R1' },
-    { id: 'vault', num: 2, label: 'Design Vault', sub: 'Qwen 4K & Turnaround' },
+    { id: 'script', num: 1, label: 'Screenplay & Story Vault', sub: 'DeepSeek-R1 Script' },
+    { id: 'vault', num: 2, label: 'Visual Asset Studio', sub: 'Character & Stage Controls' },
     { id: 'seedance', num: 3, label: 'Seedance Studio', sub: '5-Lane Multimodal' },
-    { id: 'sound', num: 4, label: 'Sound & Voice Studio', sub: 'Fish Audio & Foley (Halal)' },
+    { id: 'sound', num: 4, label: 'Sound & Voice Studio', sub: 'Fish Audio & Foley' },
     { id: 'timeline', num: 5, label: 'Timeline & Master', sub: 'FFmpeg & Subtitles' }
   ];
 

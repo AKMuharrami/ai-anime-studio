@@ -2114,55 +2114,26 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto shrink-0 border-t md:border-t-0 pt-4 md:pt-0 border-slate-800">
-          {/* Universal Vault Live Status Badge */}
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-[11px] font-mono">
+          {/* Universal Vault Live Status Badge (Smart Automatic Syncing) */}
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-[11px] font-mono shadow-inner">
             <span className={`h-2 w-2 rounded-full ${
               vaultSyncStatus === 'synced' ? 'bg-emerald-400 animate-pulse' :
               vaultSyncStatus === 'saving' ? 'bg-amber-400 animate-spin' : 'bg-slate-500'
             }`} />
-            <span className="text-slate-400 font-bold">Universal Vault:</span>
-            <span className={vaultSyncStatus === 'synced' ? 'text-emerald-400' : 'text-amber-400'}>
-              {vaultSyncStatus === 'synced' ? 'Live Auto-Saved' : vaultSyncStatus === 'saving' ? 'Syncing...' : 'Ready'}
+            <span className="text-slate-400 font-bold">Auto-Vault:</span>
+            <span className={vaultSyncStatus === 'synced' ? 'text-emerald-400 font-bold' : 'text-amber-400 font-bold'}>
+              {vaultSyncStatus === 'synced' ? '⚡ Live Synced' : vaultSyncStatus === 'saving' ? 'Syncing...' : 'Ready'}
             </span>
           </div>
 
-          <button
-            onClick={() => {
-              triggerUniversalVaultSave();
-              showToast("✨ Story and all assets successfully saved to Universal Vault!");
-            }}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-xs font-semibold transition-all active:scale-95 cursor-pointer"
-            title="Force Save Story, Characters, Scenes, Panels & Pages to Universal Vault"
-          >
-            <Save className="h-3.5 w-3.5 text-emerald-400" />
-            <span>Save to Vault</span>
-          </button>
-
+          {/* Top Vault: Story Vault Only */}
           <button
             onClick={() => setIsProjectsVaultOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 text-xs font-semibold transition-all cursor-pointer"
-            title="Open Universal Manga Projects & Stories Database"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 text-xs font-bold transition-all cursor-pointer shadow-sm"
+            title="Open Universal Manga Projects & Stories Database (Story Vault)"
           >
             <FolderGit2 className="h-3.5 w-3.5 text-indigo-400" />
             <span>Story Vault ({universalProjects.length})</span>
-          </button>
-
-          <button
-            onClick={() => setIsCharacterVaultOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-semibold transition-all cursor-pointer"
-            title="Smart Character & Environment Vault"
-          >
-            <UserCheck className="h-3.5 w-3.5 text-amber-400" />
-            <span>Character & Stage Vault</span>
-          </button>
-
-          <button
-            onClick={() => setIsPanelVaultOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-semibold transition-all cursor-pointer"
-            title="Smart Panel Storage Vault"
-          >
-            <ImageIcon className="h-3.5 w-3.5 text-emerald-400" />
-            <span>Panels Vault ({universalPanels.length})</span>
           </button>
 
           <button
@@ -2183,12 +2154,12 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
             title="Vercel Cloud Storage & Neon DB Sync Hub"
           >
             <Cloud className="h-3.5 w-3.5 text-sky-400 animate-pulse" />
-            <span>Cloud Sync</span>
+            <span>Storage Hub</span>
           </button>
 
           <button
             onClick={onBackToHome}
-            className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-semibold transition-all cursor-pointer"
+            className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-semibold transition-all cursor-pointer"
           >
             <ArrowLeft className="h-3.5 w-3.5 text-rose-400" />
             <span>Studio Hub</span>
@@ -2197,7 +2168,7 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
           <button
             onClick={handleAssemblePage}
             disabled={isAssemblingPage}
-            className="flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white text-xs font-bold shadow-md shadow-rose-600/30 transition-all active:scale-95 cursor-pointer"
+            className="flex items-center justify-center gap-1.5 px-5 py-2 rounded-xl bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white text-xs font-bold shadow-md shadow-rose-600/30 transition-all active:scale-95 cursor-pointer"
           >
             {isAssemblingPage ? (
               <RefreshCw className="h-3.5 w-3.5 animate-spin" />
@@ -2696,9 +2667,19 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
                     Step 1: Plot & Storyboard Layout
                   </h3>
                 </div>
-                <span className="text-[10px] text-rose-400 font-mono font-bold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
-                  DeepSeek-R1
-                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setIsProjectsVaultOpen(true)}
+                    className="text-[10px] font-mono font-bold bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 px-2.5 py-1 rounded-lg border border-indigo-500/30 flex items-center gap-1 transition-all cursor-pointer"
+                    title="Open Story Vault to pick or load saved screenplays & projects"
+                  >
+                    <FolderGit2 className="h-3 w-3 text-indigo-400" />
+                    <span>Story Vault ({universalProjects.length})</span>
+                  </button>
+                  <span className="text-[10px] text-rose-400 font-mono font-bold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+                    DeepSeek-R1
+                  </span>
+                </div>
               </div>
 
               <div className="space-y-4">
@@ -2833,12 +2814,22 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
                 <div className="flex items-center gap-2">
                   <UserCheck className="h-4 w-4 text-rose-400" />
                   <h3 className="font-bold text-slate-100 text-sm font-['Cinzel',serif]">
-                    Step 2: Permanent Continuity Vault
+                    Step 2: Character & Model Sheet Stage
                   </h3>
                 </div>
-                <span className="text-[10px] text-rose-400 font-mono font-bold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
-                  Neon PostgreSQL
-                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setIsCharacterVaultOpen(true)}
+                    className="text-[10px] font-mono font-bold bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 px-2.5 py-1 rounded-lg border border-amber-500/30 flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                    title="Open Character & Environment Vault"
+                  >
+                    <UserCheck className="h-3 w-3 text-amber-400" />
+                    <span>Character Vault ({characters.length})</span>
+                  </button>
+                  <span className="text-[10px] text-rose-400 font-mono font-bold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+                    Neon PostgreSQL
+                  </span>
+                </div>
               </div>
 
               {/* SMART SCRIPT CONTINUITY SCANNER */}
@@ -3522,9 +3513,19 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
                     Step 3: Qwen Panel Composition
                   </h3>
                 </div>
-                <span className="text-[10px] text-rose-400 font-mono font-bold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
-                  Qwen-Image-Edit
-                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setIsCharacterVaultOpen(true)}
+                    className="text-[10px] font-mono font-bold bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 px-2.5 py-1 rounded-lg border border-sky-500/30 flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                    title="Open Stage & Environment Keyframe Vault"
+                  >
+                    <FolderGit2 className="h-3 w-3 text-sky-400" />
+                    <span>Stage Vault ({environments.length})</span>
+                  </button>
+                  <span className="text-[10px] text-rose-400 font-mono font-bold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+                    Qwen-Image-Edit
+                  </span>
+                </div>
               </div>
 
               <div className="space-y-4">
@@ -3848,9 +3849,19 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
                     Step 4: Pillow Dialogue Bubble Engine
                   </h3>
                 </div>
-                <span className="text-[10px] text-rose-400 font-mono font-bold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
-                  Local Python PIL
-                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setIsPanelVaultOpen(true)}
+                    className="text-[10px] font-mono font-bold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 px-2.5 py-1 rounded-lg border border-emerald-500/30 flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                    title="Open Saved Panels & Frames Vault"
+                  >
+                    <ImageIcon className="h-3 w-3 text-emerald-400" />
+                    <span>Panels Vault ({universalPanels.length})</span>
+                  </button>
+                  <span className="text-[10px] text-rose-400 font-mono font-bold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+                    Local Python PIL
+                  </span>
+                </div>
               </div>
 
               <div className="space-y-4">
