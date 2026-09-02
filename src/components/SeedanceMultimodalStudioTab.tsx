@@ -101,10 +101,6 @@ export const SeedanceMultimodalStudioTab: React.FC<SeedanceMultimodalStudioTabPr
 
   const handleBatchSynthesizeDialogue = async () => {
     if (!activeScene || !activeScene.dialogue || activeScene.dialogue.length === 0) return;
-    
-    const hasTokens = await deductTokens(2, `Synthesize Scene Voice Lines`);
-    if (!hasTokens) return;
-
     setIsSynthesizingAudio(true);
     try {
       const res = await fetch('/api/assets/audio/batch-dialogue', {
@@ -343,10 +339,6 @@ export const SeedanceMultimodalStudioTab: React.FC<SeedanceMultimodalStudioTabPr
 
   const handleTriggerRender = async () => {
     if (!activeScene) return;
-
-    const hasTokens = await deductTokens(5, `Render Anime Scene Video (#${activeScene.scene_index || 1})`);
-    if (!hasTokens) return;
-
     setIsRendering(true);
 
     try {

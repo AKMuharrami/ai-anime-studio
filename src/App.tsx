@@ -22,7 +22,6 @@ import {
   INITIAL_SCENES 
 } from './data/mockData';
 import { Series, Episode, Character, Environment, Scene, ScreenplayData, ProjectRoute } from './types';
-import { UniversalVault } from './utils/universalVault';
 
 export default function App() {
   // Auth & Session state
@@ -258,7 +257,7 @@ export default function App() {
   };
 
   // Homepage: Click Resume Project
-  const handleResumeProject = async (series: Series, episode: Episode, step: string = 'script') => {
+  const handleResumeProject = (series: Series, episode: Episode, step: string = 'script') => {
     if (!token) {
       setIsAuthOpen(true);
       return;
@@ -267,18 +266,6 @@ export default function App() {
     setActiveEpisode(episode);
     setActiveTab(step);
     setCurrentView('studio');
-
-    // Asynchronously load project data from Universal Database Vault if this is a Manga project
-    if (episode.route?.startsWith('MANGA_') || episode.route === 'MANGA_STUDIO') {
-      try {
-        const vaultProject = await UniversalVault.loadProject(series.id);
-        if (vaultProject && Array.isArray(vaultProject.pages) && vaultProject.pages.length > 0) {
-          setMangaPages(vaultProject.pages);
-        }
-      } catch (err) {
-        console.warn("Universal Vault resume project notice:", err);
-      }
-    }
   };
 
   // New Project Created from Router
@@ -292,15 +279,6 @@ export default function App() {
     setActiveEpisode(newEpisode);
     setActiveTab('script');
     setCurrentView('studio');
-
-    // If manga route, auto-save initial project state into Universal Vault
-    if (newEpisode?.route?.startsWith('MANGA_')) {
-      UniversalVault.saveProject({
-        series: newSeries,
-        episode: newEpisode,
-        pages: mangaPages
-      }).catch(e => console.warn("UniversalVault init save notice:", e));
-    }
   };
 
   // Update Episode Script & Scene Breakdown
@@ -372,13 +350,11 @@ export default function App() {
   // Add Environment to Vault
   const handleAddEnvironment = (newEnv: Environment) => {
     setEnvironments(prev => [newEnv, ...prev]);
-    UniversalVault.saveEnvironment(newEnv).catch(e => console.warn("UniversalVault env save notice:", e));
   };
 
   // Add Character to Vault
   const handleAddCharacter = (newChar: Character) => {
     setCharacters(prev => [newChar, ...prev]);
-    UniversalVault.saveCharacter(newChar).catch(e => console.warn("UniversalVault char save notice:", e));
   };
 
   // Batch Add Characters and Environments to Vault
@@ -467,6 +443,7 @@ export default function App() {
       
       {/* Top Navbar */}
       <Navbar
+        user={user}
         currentView={currentView}
         onNavigateHome={() => setCurrentView('home')}
         onNavigateStudio={() => {
@@ -548,7 +525,6 @@ export default function App() {
                 deductTokens={deductTokens}
                 mangaPages={mangaPages}
                 onUpdateMangaPages={setMangaPages}
-                onSwitchProject={handleResumeProject}
               />
             ) : (
               <>
@@ -646,12 +622,12 @@ export default function App() {
       />
 
       <DatabaseArchitectureModal
-        isOpen={isSchemaModalOpen}
+        isOpen={isSchemaModalOpen && !!user?.is_admin}
         onClose={() => setIsSchemaModalOpen(false)}
       />
 
       <PythonOrchestrationModal
-        isOpen={isPythonModalOpen}
+        isOpen={isPythonModalOpen && !!user?.is_admin}
         onClose={() => setIsPythonModalOpen(false)}
       />
 

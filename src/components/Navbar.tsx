@@ -20,9 +20,10 @@ import {
   Menu,
   X
 } from 'lucide-react';
-import { ProjectRoute, Series, Episode } from '../types';
+import { ProjectRoute, Series, Episode, User } from '../types';
 
 interface NavbarProps {
+  user: User | null;
   currentView: 'home' | 'studio';
   onNavigateHome: () => void;
   onNavigateStudio: () => void;
@@ -45,6 +46,7 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
+  user,
   currentView,
   onNavigateHome,
   onNavigateStudio,
@@ -94,10 +96,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   const steps = activeEpisode?.route === 'MANGA_STUDIO' ? [
     { id: 'manga', num: 'C', label: 'AI Manga Studio', sub: 'Qwen-Image-Edit & Pillow Pipeline' }
   ] : [
-    { id: 'script', num: 1, label: 'Screenplay & Story Vault', sub: 'DeepSeek-R1 Script' },
-    { id: 'vault', num: 2, label: 'Visual Asset Studio', sub: 'Character & Stage Controls' },
+    { id: 'script', num: 1, label: 'Screenplay Parser', sub: 'DeepSeek-R1' },
+    { id: 'vault', num: 2, label: 'Design Vault', sub: 'Qwen 4K & Turnaround' },
     { id: 'seedance', num: 3, label: 'Seedance Studio', sub: '5-Lane Multimodal' },
-    { id: 'sound', num: 4, label: 'Sound & Voice Studio', sub: 'Fish Audio & Foley' },
+    { id: 'sound', num: 4, label: 'Sound & Voice Studio', sub: 'Fish Audio & Foley (Halal)' },
     { id: 'timeline', num: 5, label: 'Timeline & Master', sub: 'FFmpeg & Subtitles' }
   ];
 
@@ -345,29 +347,31 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             )}
 
-            {/* Quick Action Commands */}
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <button
-                onClick={() => {
-                  onOpenSchemaModal();
-                  setIsMobileMenuOpen(false);
-                }}
-                className="flex items-center justify-center gap-1.5 p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-slate-300 hover:text-white"
-              >
-                <Database className="h-3.5 w-3.5 text-sky-400" />
-                <span>DB Schema</span>
-              </button>
-              <button
-                onClick={() => {
-                  onOpenPythonModal();
-                  setIsMobileMenuOpen(false);
-                }}
-                className="flex items-center justify-center gap-1.5 p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-slate-300 hover:text-white"
-              >
-                <Code2 className="h-3.5 w-3.5 text-amber-400" />
-                <span>Celery Workers</span>
-              </button>
-            </div>
+            {/* Quick Action Commands (Admin Only) */}
+            {user?.is_admin && (
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <button
+                  onClick={() => {
+                    onOpenSchemaModal();
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="flex items-center justify-center gap-1.5 p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-slate-300 hover:text-white"
+                >
+                  <Database className="h-3.5 w-3.5 text-sky-400" />
+                  <span>DB Schema</span>
+                </button>
+                <button
+                  onClick={() => {
+                    onOpenPythonModal();
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="flex items-center justify-center gap-1.5 p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-slate-300 hover:text-white"
+                >
+                  <Code2 className="h-3.5 w-3.5 text-amber-400" />
+                  <span>Celery Workers</span>
+                </button>
+              </div>
+            )}
 
             {/* Resume button if on homepage */}
             {currentView === 'home' && activeSeries && (

@@ -77,9 +77,6 @@ export const StudioDesignVaultTab: React.FC<StudioDesignVaultTabProps> = ({
 
   // Enhance a single character's reference turnaround sheet
   const handleAutoEnhanceCharacter = async (char: Character) => {
-    const hasTokens = await deductTokens(3, `Auto-Enhance Character Turnaround (${char.name})`);
-    if (!hasTokens) return;
-
     setEnhancingCharId(char.id);
     setEnhanceProgressMsg(`Synthesizing 4-angle turnaround blueprint for "${char.name}"...`);
     try {
@@ -111,9 +108,6 @@ export const StudioDesignVaultTab: React.FC<StudioDesignVaultTabProps> = ({
 
   // Batch enhance all insufficient characters in the project
   const handleBatchAutoEnhanceAll = async () => {
-    const hasTokens = await deductTokens(6, "Batch Upgrade All Characters with 4-Angle Model Sheets");
-    if (!hasTokens) return;
-
     setIsBatchEnhancing(true);
     setEnhanceProgressMsg("Scanning project characters for placeholder/insufficient references...");
     try {
@@ -167,10 +161,6 @@ export const StudioDesignVaultTab: React.FC<StudioDesignVaultTabProps> = ({
 
   const handleRunQwenImageEdit = async () => {
     if (!qwenEditPrompt || !qwenSourceImage) return;
-
-    const hasTokens = await deductTokens(2, "Qwen 2.5VL Image Edit");
-    if (!hasTokens) return;
-
     setIsQwenEditing(true);
     setQwenEditResult(null);
 
@@ -308,10 +298,6 @@ export const StudioDesignVaultTab: React.FC<StudioDesignVaultTabProps> = ({
   // Single Angle Regenerator
   const handleRegenerateAngle = async (angleKey: string) => {
     if (!selectedChar) return;
-
-    const hasTokens = await deductTokens(1, `Regenerate ${angleKey} Angle`);
-    if (!hasTokens) return;
-
     setRegeneratingAngleKey(angleKey);
 
     try {
@@ -409,10 +395,6 @@ export const StudioDesignVaultTab: React.FC<StudioDesignVaultTabProps> = ({
 
   const handleGenerateEnvironment = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    const hasTokens = await deductTokens(2, `Generate Environment Keyframe (${newEnvLocation})`);
-    if (!hasTokens) return;
-
     setIsGeneratingEnv(true);
 
     try {
@@ -474,10 +456,6 @@ export const StudioDesignVaultTab: React.FC<StudioDesignVaultTabProps> = ({
 
   const handleGenerateCharacter = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    const hasTokens = await deductTokens(3, `Synthesize Character Turnaround Sheet (${newCharName})`);
-    if (!hasTokens) return;
-
     setIsGeneratingChar(true);
 
     try {

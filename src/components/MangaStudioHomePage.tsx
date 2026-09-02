@@ -331,15 +331,18 @@ export const MangaStudioHomePage: React.FC<MangaStudioHomePageProps> = ({
             </span>
           </div>
 
-          {/* EXACT PIPELINE MANGA CANVAS (PORTRAIT 1:1.58 RATIO MATCHING MANGASTUDIOTAB WORKSPACE, SCALED 20%) */}
-          <div className="bg-white border-8 border-black rounded-xl p-3.5 sm:p-5 shadow-2xl relative w-full max-w-lg aspect-[1/1.58] mx-auto overflow-hidden flex flex-col justify-between select-none">
+          {/* EXACT PIPELINE MANGA CANVAS (PORTRAIT 1:1.58 RATIO MATCHING MANGASTUDIOTAB WORKSPACE, SCALED DIRECT PROPORTION) */}
+          <div 
+            className="@container bg-white border-[1.2cqw] border-black rounded-xl p-[3.5cqw] shadow-2xl relative w-full max-w-lg aspect-[1/1.58] mx-auto overflow-hidden flex flex-col justify-between select-none"
+            style={{ containerType: 'inline-size' }}
+          >
             
             {/* GRID PANEL WRAPPER */}
-            <div className="flex flex-col h-full justify-between gap-3 relative flex-1 mb-4">
+            <div className="flex flex-col h-full justify-between gap-[1.5cqw] relative flex-1 mb-[2.5cqw]">
               
               {/* ROW 1: PANEL 1 (TOP PANORAMIC PANEL) */}
               {activeDraftPage.panels[0] && (
-                <div className="w-full h-[48%] border-4 border-black relative overflow-hidden group">
+                <div className="w-full h-[48%] border-[0.7cqw] border-black relative overflow-hidden group">
                   <img
                     src={activeDraftPage.panels[0].imageUrl}
                     alt={`Panel 1`}
@@ -350,14 +353,14 @@ export const MangaStudioHomePage: React.FC<MangaStudioHomePageProps> = ({
                   <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-transparent via-transparent to-black/10 mix-blend-multiply pointer-events-none" />
                   
                   {/* Panel Number Badge */}
-                  <div className="absolute top-2 left-2 bg-black text-white text-[10px] font-black font-mono h-5 w-5 flex items-center justify-center rounded z-10 shadow-md">
+                  <div className="absolute top-[1.2cqw] left-[1.2cqw] bg-black text-white text-[1.6cqw] font-black font-mono h-[3.2cqw] w-[3.2cqw] flex items-center justify-center rounded-[0.5cqw] z-10 shadow-md">
                     1
                   </div>
 
                   {/* Character Tags */}
-                  <div className="absolute top-2 right-2 flex gap-1 z-10">
+                  <div className="absolute top-[1.2cqw] right-[1.2cqw] flex gap-[0.5cqw] z-10">
                     {activeDraftPage.panels[0].charactersPresent.map((c, i) => (
-                      <span key={i} className="bg-black/80 text-white text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border border-white/20">
+                      <span key={i} className="bg-black/80 text-white text-[1.4cqw] font-mono font-bold px-[1cqw] py-[0.3cqw] rounded border border-white/20">
                         {c}
                       </span>
                     ))}
@@ -366,7 +369,7 @@ export const MangaStudioHomePage: React.FC<MangaStudioHomePageProps> = ({
                   {/* Speech Bubble Overlay */}
                   {activeDraftPage.panels[0].speechText && (
                     <div 
-                      className="absolute z-20 max-w-[75%] bg-white text-black px-3 py-2 rounded-2xl border-2 border-black font-sans text-xs font-bold leading-snug shadow-2xl text-center"
+                      className="absolute z-20 max-w-[32cqw] bg-white text-black px-[2.2cqw] py-[1.5cqw] rounded-full border-[0.4cqw] border-black font-sans text-[2.1cqw] font-bold leading-tight shadow-sm text-center"
                       style={{
                         top: `${activeDraftPage.panels[0].bubbleY || 20}%`,
                         left: `${activeDraftPage.panels[0].bubbleX || 50}%`,
@@ -374,18 +377,18 @@ export const MangaStudioHomePage: React.FC<MangaStudioHomePageProps> = ({
                       }}
                     >
                       {activeDraftPage.panels[0].speechText}
-                      <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-black" />
+                      <div className="absolute bottom-[-1.2cqw] left-1/2 -translate-x-1/2 w-0 h-0 border-l-[0.9cqw] border-l-transparent border-r-[0.9cqw] border-r-transparent border-t-[1.2cqw] border-t-black" />
                     </div>
                   )}
                 </div>
               )}
 
               {/* ROW 2: SPLIT PANELS 2 & 3 */}
-              <div className="w-full h-[48%] flex flex-row gap-3">
+              <div className="w-full h-[48%] flex flex-row gap-[1.5cqw]">
                 {activeDraftPage.panels.slice(1, 3).map((pnl, idx) => {
                   const panelNumber = idx + 2;
                   return (
-                    <div key={pnl.id || panelNumber} className="w-1/2 h-full border-4 border-black relative overflow-hidden group">
+                    <div key={pnl.id || panelNumber} className="w-1/2 h-full border-[0.7cqw] border-black relative overflow-hidden group">
                       <img
                         src={pnl.imageUrl}
                         alt={`Panel ${panelNumber}`}
@@ -396,14 +399,14 @@ export const MangaStudioHomePage: React.FC<MangaStudioHomePageProps> = ({
                       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-transparent via-transparent to-black/10 mix-blend-multiply pointer-events-none" />
 
                       {/* Panel Number Badge */}
-                      <div className="absolute top-2 left-2 bg-black text-white text-[10px] font-black font-mono h-5 w-5 flex items-center justify-center rounded z-10 shadow-md">
+                      <div className="absolute top-[1.2cqw] left-[1.2cqw] bg-black text-white text-[1.6cqw] font-black font-mono h-[3.2cqw] w-[3.2cqw] flex items-center justify-center rounded-[0.5cqw] z-10 shadow-md">
                         {panelNumber}
                       </div>
 
                       {/* Character Tags */}
-                      <div className="absolute top-2 right-2 flex gap-1 z-10">
+                      <div className="absolute top-[1.2cqw] right-[1.2cqw] flex gap-[0.5cqw] z-10">
                         {pnl.charactersPresent.map((c, i) => (
-                          <span key={i} className="bg-black/80 text-white text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border border-white/20">
+                          <span key={i} className="bg-black/80 text-white text-[1.4cqw] font-mono font-bold px-[1cqw] py-[0.3cqw] rounded border border-white/20">
                             {c}
                           </span>
                         ))}
@@ -412,7 +415,7 @@ export const MangaStudioHomePage: React.FC<MangaStudioHomePageProps> = ({
                       {/* Speech Bubble Overlay */}
                       {pnl.speechText && (
                         <div 
-                          className="absolute z-20 max-w-[85%] bg-white text-black px-2.5 py-1.5 rounded-2xl border-2 border-black font-sans text-[11px] font-bold leading-tight shadow-2xl text-center"
+                          className="absolute z-20 max-w-[32cqw] bg-white text-black px-[2.2cqw] py-[1.5cqw] rounded-full border-[0.4cqw] border-black font-sans text-[2.1cqw] font-bold leading-tight shadow-sm text-center"
                           style={{
                             top: `${pnl.bubbleY || 30}%`,
                             left: `${pnl.bubbleX || 50}%`,
@@ -420,7 +423,7 @@ export const MangaStudioHomePage: React.FC<MangaStudioHomePageProps> = ({
                           }}
                         >
                           {pnl.speechText}
-                          <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[7px] border-t-black" />
+                          <div className="absolute bottom-[-1.2cqw] left-1/2 -translate-x-1/2 w-0 h-0 border-l-[0.9cqw] border-l-transparent border-r-[0.9cqw] border-r-transparent border-t-[1.2cqw] border-t-black" />
                         </div>
                       )}
                     </div>
@@ -431,7 +434,7 @@ export const MangaStudioHomePage: React.FC<MangaStudioHomePageProps> = ({
             </div>
 
             {/* PAGE FOOTER TEXT EXACT MATCH */}
-            <div className="text-[10px] font-black text-black font-mono tracking-widest uppercase text-center shrink-0 border-t border-black/10 pt-1">
+            <div className="text-[1.6cqw] font-black text-black font-mono tracking-widest uppercase text-center shrink-0 border-t border-black/10 pt-[0.5cqw]">
               PAGE {activeDraftPage.pageNumber} • THE UNBROKEN LINEAGE • CHAPTER 1
             </div>
           </div>

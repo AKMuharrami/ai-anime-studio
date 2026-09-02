@@ -33,19 +33,11 @@ import {
   Plus,
   Users,
   Cloud,
-  Upload,
-  Database,
-  FolderGit2,
-  Save,
-  CheckCheck,
-  Bookmark,
-  Compass,
-  Sparkle
+  Upload
 } from 'lucide-react';
 import html2canvas from 'html2canvas-pro';
 import JSZip from 'jszip';
 import { Scene, Character, Environment, Episode, Series } from '../types';
-import { UniversalVault, UniversalPanelItem, UniversalProjectSummary } from '../utils/universalVault';
 
 interface MangaStudioTabProps {
   deductTokens: (cost: number, reason: string) => Promise<boolean>;
@@ -56,9 +48,6 @@ interface MangaStudioTabProps {
   onAddCharacter: (character: Character) => void;
   onAddEnvironment: (environment: Environment) => void;
   onBackToHome?: () => void;
-  mangaPages?: MangaPageRecord[];
-  onUpdateMangaPages?: (pages: MangaPageRecord[]) => void;
-  onSwitchProject?: (series: Series, episode: Episode) => void;
 }
 
 export interface MangaPanel {
@@ -86,7 +75,6 @@ export interface MangaPageRecord {
   id: string;
   pageNumber: number;
   chapterNumber: number;
-  gridLayoutTemplate?: string;
   panels: MangaPanel[];
   pageImageObj?: string;
 }
@@ -344,61 +332,6 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
   const [isEnvironmentVaultOpen, setIsEnvironmentVaultOpen] = useState(false);
   const [isPanelVaultOpen, setIsPanelVaultOpen] = useState(false);
   const [isChaptersGalleryOpen, setIsChaptersGalleryOpen] = useState(false);
-  const [isProjectsVaultOpen, setIsProjectsVaultOpen] = useState(false);
-
-  // Universal Database Vault Rich State
-  const [universalPanels, setUniversalPanels] = useState<UniversalPanelItem[]>([]);
-  const [universalProjects, setUniversalProjects] = useState<UniversalProjectSummary[]>([]);
-  const [universalCharacters, setUniversalCharacters] = useState<Character[]>([]);
-  const [universalEnvironments, setUniversalEnvironments] = useState<Environment[]>([]);
-  const [vaultSyncStatus, setVaultSyncStatus] = useState<'synced' | 'saving' | 'offline'>('synced');
-  const [lastVaultSyncTime, setLastVaultSyncTime] = useState<string>('Just now');
-  const [panelVaultFilter, setPanelVaultFilter] = useState<'all' | 'current' | 'rendered'>('all');
-  const [panelVaultSearch, setPanelVaultSearch] = useState<string>('');
-  const [characterVaultSearch, setCharacterVaultSearch] = useState<string>('');
-  const [characterVaultTab, setCharacterVaultTab] = useState<'characters' | 'environments'>('characters');
-
-  // Load Universal Vault items from Universal Storage Engine
-  const loadUniversalVaultData = async () => {
-    try {
-      const [allPanels, allChars, allEnvs, allProjs] = await Promise.all([
-        UniversalVault.getAllPanels(),
-        UniversalVault.getAllCharacters(),
-        UniversalVault.getAllEnvironments(),
-        UniversalVault.getAllProjects()
-      ]);
-      setUniversalPanels(allPanels);
-      setUniversalCharacters(allChars.length > 0 ? allChars : characters);
-      setUniversalEnvironments(allEnvs.length > 0 ? allEnvs : environments);
-      setUniversalProjects(allProjs);
-    } catch (err) {
-      console.warn("Universal Vault load data error:", err);
-    }
-  };
-
-  // Initial load and periodic refresh of Universal Vault Data
-  useEffect(() => {
-    loadUniversalVaultData();
-  }, [isCharacterVaultOpen, isPanelVaultOpen, isProjectsVaultOpen, isChaptersGalleryOpen]);
-
-  // Universal Vault Save Trigger
-  const triggerUniversalVaultSave = async (currentPages?: MangaPageRecord[]) => {
-    setVaultSyncStatus('saving');
-    try {
-      const pagesToSave = currentPages || pages;
-      await UniversalVault.saveProject({
-        series: activeSeries || undefined,
-        episode: activeEpisode || undefined,
-        pages: pagesToSave
-      });
-      setVaultSyncStatus('synced');
-      setLastVaultSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-      loadUniversalVaultData();
-    } catch (err) {
-      console.error("Universal Vault save trigger error:", err);
-      setVaultSyncStatus('offline');
-    }
-  };
 
   // Vercel Cloud Storage Hub & Neon DB Sync Hub States
   const [isStorageHubOpen, setIsStorageHubOpen] = useState(false);
@@ -558,9 +491,6 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
 
   // Enhance a single character's reference turnaround sheet
   const handleAutoEnhanceCharacter = async (char: Character) => {
-    const hasTokens = await deductTokens(3, `Auto-Enhance Character Turnaround (${char.name})`);
-    if (!hasTokens) return;
-
     setEnhancingCharId(char.id);
     setEnhanceProgressMsg(`Synthesizing 4-angle turnaround blueprint for "${char.name}"...`);
     try {
@@ -595,9 +525,6 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
 
   // Batch enhance all insufficient characters in the project
   const handleBatchAutoEnhanceAll = async () => {
-    const hasTokens = await deductTokens(6, "Batch Upgrade All Characters with 4-Angle Model Sheets");
-    if (!hasTokens) return;
-
     setIsBatchEnhancing(true);
     setEnhanceProgressMsg("Scanning project characters for placeholder/insufficient references...");
     try {
@@ -763,20 +690,11 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
     return detected;
   };
 
-  // High-fidelity smart turnaround character prompt generator with accurate gender and consistency parameters
+  // High-fidelity smart turnaround character prompt generator with all consistency parameters
   const getCharacterAutofillDescriptor = (name: string): string => {
     let genre = detectProjectGenre();
     const cleanName = name.trim() || 'Character';
     const lowerName = cleanName.toLowerCase();
-
-    // Smart Gender Identification & Disambiguation
-    const femaleKeywords = [
-      'lady', 'princess', 'queen', 'empress', 'priestess', 'heroine', 'girl', 'woman', 
-      'witch', 'sorceress', 'valkyrie', 'madame', 'sakura', 'hinata', 'elena', 'aria', 
-      'sophia', 'luna', 'anna', 'maya', 'yuki', 'kaori', 'reiko', 'sarah', 'rachel', 
-      'mary', 'daughter', 'sister', 'mother', 'damsel', 'female'
-    ];
-    const isFemale = femaleKeywords.some(kw => lowerName.includes(kw));
 
     if (
       lowerName.includes('warrior') || lowerName.includes('samurai') || lowerName.includes('ronin') ||
@@ -787,63 +705,30 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
     }
 
     if (genre === 'ANCIENT') {
-      if (isFemale) {
-        return `${cleanName}: Canon Japanese Seinen Gekiga Manga Model Sheet (Ancient / Feudal World Setting).
-• Gender & Demographic: Female (Age 26, athletic female warrior build, modest traditional attire).
-• Hairstyle & Color: Long obsidian raven-black hair tied in a high traditional warrior ponytail with braided crimson cord.
-• Eye Morphology: Sharp, focused almond-shaped dark hazel eyes with determined samurai focus.
-• Facial Architecture & Skin: Graceful yet resolute facial contours, smooth fair complexion, disciplined expression.
-• Signature Wardrobe: Traditional battle-ready dark crimson and indigo kimono haori with iron shoulder pauldrons, leather forearm guards (kote), high-waisted hakama trousers, full modest coverage, straw waraji sandals.
-• Weapons & Props: Elegant curved nodachi or dual wakizashi in black lacquered scabbard.
-• CRITICAL 4-ANGLE CONSISTENCY: Multi-angle orthographic turnaround (Front View 0°, 3/4 View 45°, Side Profile 90°, Back View 180°). Exact hairstyle, facial contours, and armor continuity across all panels.`;
-      }
-
       return `${cleanName}: Canon Japanese Seinen Gekiga Manga Model Sheet (Ancient / Feudal World Setting).
-• Gender & Demographic: Male (Age 32, hardened muscular male warrior physique).
+• Age & Anatomy: Mature 32-year-old battle-tested warrior with hardened muscular physique.
 • Hairstyle & Color: Coarse obsidian raven-black hair gathered in a traditional samurai topknot (chonmage) with loose wind-blown side bangs.
 • Eye Morphology: Narrowed, piercing dark amber-obsidian eyes with intense battle-hardened focus and defined brow creases.
 • Facial Architecture & Skin: Rugged chiseled jawline, prominent cheekbones, stoic weathered warrior expression, sun-bronzed skin tone, subtle scar across brow.
-• Signature Wardrobe: Authentic battle-worn dark indigo and charcoal samurai haori over black iron lamellar armor plates, solid iron pectoral chestplate cuirass, leather forearm vambraces (kote), tailored dark hakama trousers, wide textured obi sash, strapped straw waraji sandals. ZERO modern clothing.
+• Signature Wardrobe: Authentic battle-worn dark indigo and charcoal samurai haori over black iron lamellar armor plates, leather forearm vambraces (kote), tailored dark hakama trousers, wide textured obi sash, strapped straw waraji sandals. ZERO modern clothing.
 • Weapons & Props: Twin katana in worn lacquered scabbards tucked in obi sash with braided sageo cord.
 • CRITICAL 4-ANGLE CONSISTENCY: Multi-angle orthographic turnaround (Front View 0°, 3/4 View 45°, Side Profile 90°, Back View 180°). Facial architecture, hair silhouette, and samurai armor details maintain 100% strict unchanging visual continuity across all panels.`;
     }
 
     if (genre === 'FANTASY') {
-      if (isFemale) {
-        return `${cleanName}: Canon Japanese Seinen Gekiga Manga Model Sheet (Dark Fantasy Setting).
-• Gender & Demographic: Female (Age 27, athletic female knight commander build).
-• Hairstyle & Color: Flowing silver-frosted hair with intricate side braids and crystalline sheen.
-• Eye Morphology: Luminous azure-violet eyes with commanding intelligence.
-• Facial Architecture & Skin: Refined noble facial structure, porcelain skin tone, resolute knightly expression.
-• Signature Wardrobe: Etched runic silver-mythril plate armor with reinforced chestplate cuirass, flowing azure mantle, high-collared neck guard, chainmail greaves. Full modest knight armor coverage.
-• Weapons & Props: Frost-forged runic rapier or slender broadsword with glowing sapphire gem.
-• CRITICAL 4-ANGLE CONSISTENCY: Multi-angle orthographic turnaround (Front View 0°, 3/4 View 45°, Side Profile 90°, Back View 180°). Exact hairstyle, eye shape, and armor continuity across all panels.`;
-      }
-
       return `${cleanName}: Canon Japanese Seinen Gekiga Manga Model Sheet (Dark Fantasy Setting).
-• Gender & Demographic: Male (Age 30, imposing muscular male knight commander build).
+• Age & Anatomy: Mature 30-year-old knight commander with imposing armored build.
 • Hairstyle & Color: Flowing medium silver-frosted hair with sculpted sharp locks and crystalline sheen.
 • Eye Morphology: Luminous crystal-azure eyes with commanding knightly focus.
 • Facial Architecture & Skin: Regal chiseled facial structure, sharp defined jawline, resolute knightly expression.
-• Signature Wardrobe: Etched runic silver-mythril full-plate armor with azure velvet mantle, high-collared neck guard, solid steel pectoral chestplate cuirass, reinforced chainmail.
+• Signature Wardrobe: Etched runic silver-mythril full-plate armor with azure velvet mantle, high-collared neck guard, sapphire-inlaid breastplate, reinforced chainmail.
 • Weapons & Props: Frost-forged broadsword with glowing runic fuller, celestial crest brooch.
 • CRITICAL 4-ANGLE CONSISTENCY: Multi-angle orthographic turnaround (Front View 0°, 3/4 View 45°, Side Profile 90°, Back View 180°). Exact hairstyle, eye shape, and armor continuity across all panels.`;
     }
 
     if (genre === 'CYBERPUNK') {
-      if (isFemale) {
-        return `${cleanName}: Canon Japanese Seinen Gekiga Manga Model Sheet (Cyberpunk 2099 Setting).
-• Gender & Demographic: Female (Age 27, agile female cybernetic operative).
-• Hairstyle & Color: Sleek asymmetrical jet-black bob with luminous cyan highlight strands.
-• Eye Morphology: Left eye deep obsidian, right eye glowing neon-cyan cybernetic optic HUD reticle.
-• Facial Architecture & Skin: Sharp angular jawline, delicate chrome neural port on temple, cool focused expression.
-• Signature Wardrobe: Matte-black tactical combat trenchcoat with cyan fiber-optic seams, high-neck armored bodysuit, utility harness, combat boots.
-• Weapons & Props: Dual energy sidearms, neural wrist deck.
-• CRITICAL 4-ANGLE CONSISTENCY: Multi-angle orthographic turnaround (Front View 0°, 3/4 View 45°, Side Profile 90°, Back View 180°). Exact hairstyle, ocular implant, and coat continuity across all panels.`;
-      }
-
       return `${cleanName}: Canon Japanese Seinen Gekiga Manga Model Sheet (Cyberpunk 2099 Setting).
-• Gender & Demographic: Male (Age 29, athletic male tactical cybernetic operative).
+• Age & Anatomy: Mature 29-year-old tactical cybernetic operative with athletic build.
 • Hairstyle & Color: Tousled layered obsidian black hair with sharp angular bangs and cyan specular sheen.
 • Eye Morphology: Right eye natural dark brown, left eye glowing cobalt cybernetic ocular lens with active HUD reticle.
 • Facial Architecture & Skin: Sharp angular jawline, slight cybernetic neural port along right temple, calm tactical expression.
@@ -852,19 +737,8 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
 • CRITICAL 4-ANGLE CONSISTENCY: Multi-angle orthographic turnaround (Front View 0°, 3/4 View 45°, Side Profile 90°, Back View 180°). Exact hairstyle, ocular implant, and coat continuity across all panels.`;
     }
 
-    if (isFemale) {
-      return `${cleanName}: Canon Japanese Seinen Gekiga Manga Model Sheet (Modern Setting).
-• Gender & Demographic: Female (Age 28, sharp female detective and martial artist).
-• Hairstyle & Color: Shoulder-length textured dark brown hair with soft curtain bangs.
-• Eye Morphology: Intelligent piercing amber-brown eyes with keen investigative focus.
-• Facial Architecture & Skin: Clean defined facial contours, calm focused expression.
-• Signature Wardrobe: Tailored dark charcoal trenchcoat over a high-neck dark turtleneck, tailored combat trousers, leather boots.
-• Weapons & Props: Concealed shoulder holster, field notebook, encrypted communicator.
-• CRITICAL 4-ANGLE CONSISTENCY: Multi-angle orthographic turnaround (Front View 0°, 3/4 View 45°, Side Profile 90°, Back View 180°). Exact hairstyle and facial continuity across all panels.`;
-    }
-
     return `${cleanName}: Canon Japanese Seinen Gekiga Manga Model Sheet (Modern Setting).
-• Gender & Demographic: Male (Age 31, gritty male detective and martial artist).
+• Age & Anatomy: Mature 31-year-old gritty detective and martial artist.
 • Hairstyle & Color: Clean textured crop with dark raven strands and natural parted bangs.
 • Eye Morphology: Deep-set piercing hazel-brown eyes with sharp observant gaze.
 • Facial Architecture & Skin: Defined rugged jawline, subtle dark stubble shadow, calm disciplined expression.
@@ -948,160 +822,6 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
     setActivePageIndex(newIndex);
     setPanels(updatedPages[newIndex].panels);
     setSelectedPanelId(updatedPages[newIndex].panels[0]?.id || '');
-  };
-
-  // Universal Page Management Handlers
-  const handleAddPage = () => {
-    const newPageNum = pages.length + 1;
-    const newPage: MangaPageRecord = {
-      id: `page_${newPageNum}_${Date.now()}`,
-      pageNumber: newPageNum,
-      chapterNumber: currentChapter,
-      gridLayoutTemplate: 'GRID_ADAPTIVE',
-      panels: [
-        {
-          id: `p${newPageNum}_panel_1_${Date.now()}`,
-          panelIndex: 1,
-          layoutClass: 'col-span-12 row-span-1 h-56',
-          charactersPresent: characters[0] ? [characters[0].name] : [],
-          expression: 'Determined focus',
-          equipment: '',
-          actionPrompt: 'Establishing wide panoramic scene...',
-          speechText: 'Dialogue goes here...',
-          bubbleStyle: 'oval',
-          bubbleX: 50,
-          bubbleY: 30,
-          bubbleScale: 1.0,
-          bgUrl: environments[0]?.master_keyframe_url || 'https://images.unsplash.com/photo-1542831371-29b0f74f9713?q=80&w=1200',
-          charSheetUrl: characters[0]?.turnaround_url || 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?q=80&w=600',
-          imageUrl: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?q=80&w=1200',
-          isRendered: false,
-          renderingStatus: 'IDLE'
-        },
-        {
-          id: `p${newPageNum}_panel_2_${Date.now()}`,
-          panelIndex: 2,
-          layoutClass: 'col-span-6 row-span-1 h-56',
-          charactersPresent: characters[0] ? [characters[0].name] : [],
-          expression: 'Sharp reaction',
-          equipment: '',
-          actionPrompt: 'Mid shot dramatic exchange...',
-          speechText: '...',
-          bubbleStyle: 'oval',
-          bubbleX: 50,
-          bubbleY: 45,
-          bubbleScale: 1.0,
-          bgUrl: environments[0]?.master_keyframe_url || 'https://images.unsplash.com/photo-1542831371-29b0f74f9713?q=80&w=1200',
-          charSheetUrl: characters[0]?.turnaround_url || 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?q=80&w=600',
-          imageUrl: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?q=80&w=1200',
-          isRendered: false,
-          renderingStatus: 'IDLE'
-        },
-        {
-          id: `p${newPageNum}_panel_3_${Date.now()}`,
-          panelIndex: 3,
-          layoutClass: 'col-span-6 row-span-1 h-56',
-          charactersPresent: [],
-          expression: 'Action impact',
-          equipment: '',
-          actionPrompt: 'Impact close-up focus...',
-          speechText: '!',
-          bubbleStyle: 'burst',
-          bubbleX: 50,
-          bubbleY: 50,
-          bubbleScale: 1.0,
-          bgUrl: environments[0]?.master_keyframe_url || 'https://images.unsplash.com/photo-1542831371-29b0f74f9713?q=80&w=1200',
-          charSheetUrl: characters[0]?.turnaround_url || 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?q=80&w=600',
-          imageUrl: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?q=80&w=1200',
-          isRendered: false,
-          renderingStatus: 'IDLE'
-        }
-      ]
-    };
-
-    const newPages = [...pages, newPage];
-    setPages(newPages);
-    handleSwitchPage(newPages.length - 1);
-    showToast(`✨ Added Page ${newPageNum} to story!`);
-    triggerUniversalVaultSave(newPages);
-  };
-
-  const handleDuplicatePage = (pageIdx: number) => {
-    if (!pages[pageIdx]) return;
-    const sourcePage = pages[pageIdx];
-    const duplicatedPage: MangaPageRecord = {
-      ...sourcePage,
-      id: `page_${Date.now()}`,
-      pageNumber: sourcePage.pageNumber + 1,
-      panels: sourcePage.panels.map((p, pIdx) => ({
-        ...p,
-        id: `p_dup_${Date.now()}_${pIdx}`
-      }))
-    };
-
-    const newPages = [
-      ...pages.slice(0, pageIdx + 1),
-      duplicatedPage,
-      ...pages.slice(pageIdx + 1)
-    ].map((p, idx) => ({ ...p, pageNumber: idx + 1 }));
-
-    setPages(newPages);
-    handleSwitchPage(pageIdx + 1);
-    showToast(`📑 Cloned Page ${sourcePage.pageNumber} as Page ${pageIdx + 2}!`);
-    triggerUniversalVaultSave(newPages);
-  };
-
-  const handleDeletePage = (pageIdx: number) => {
-    if (pages.length <= 1) {
-      showToast("⚠️ Story must contain at least 1 page.");
-      return;
-    }
-    const targetNum = pages[pageIdx].pageNumber;
-    const newPages = pages.filter((_, idx) => idx !== pageIdx).map((p, idx) => ({
-      ...p,
-      pageNumber: idx + 1
-    }));
-
-    const nextActiveIndex = Math.min(pageIdx, newPages.length - 1);
-    setPages(newPages);
-    setActivePageIndex(nextActiveIndex);
-    setPanels(newPages[nextActiveIndex].panels);
-    setSelectedPanelId(newPages[nextActiveIndex].panels[0]?.id || '');
-    showToast(`🗑️ Deleted Page ${targetNum}.`);
-    triggerUniversalVaultSave(newPages);
-  };
-
-  const handleMovePage = (pageIdx: number, direction: 'up' | 'down') => {
-    if (direction === 'up' && pageIdx === 0) return;
-    if (direction === 'down' && pageIdx === pages.length - 1) return;
-
-    const targetIdx = direction === 'up' ? pageIdx - 1 : pageIdx + 1;
-    const newPages = [...pages];
-    const temp = newPages[pageIdx];
-    newPages[pageIdx] = newPages[targetIdx];
-    newPages[targetIdx] = temp;
-
-    // Re-index page numbers
-    const reindexed = newPages.map((p, idx) => ({ ...p, pageNumber: idx + 1 }));
-    setPages(reindexed);
-    handleSwitchPage(targetIdx);
-    showToast(`🔄 Moved Page ${pageIdx + 1} to Page ${targetIdx + 1}`);
-    triggerUniversalVaultSave(reindexed);
-  };
-
-  const handleMovePanel = (panelIndex: number, direction: 'up' | 'down') => {
-    if (direction === 'up' && panelIndex === 0) return;
-    if (direction === 'down' && panelIndex === panels.length - 1) return;
-
-    const targetIndex = direction === 'up' ? panelIndex - 1 : panelIndex + 1;
-    const newPanels = [...panels];
-    const temp = newPanels[panelIndex];
-    newPanels[panelIndex] = newPanels[targetIndex];
-    newPanels[targetIndex] = temp;
-
-    const reindexed = newPanels.map((p, idx) => ({ ...p, panelIndex: idx + 1 }));
-    setPanels(reindexed);
-    showToast(`🔄 Reordered Panel ${panelIndex + 1}`);
   };
 
   const MANGA_LAYOUT_TEMPLATES = [
@@ -1318,9 +1038,6 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
   const handleGenerateMangaScript = async () => {
     if (!mangaPlotConcept.trim()) return;
     
-    const hasTokens = await deductTokens(5, "Generate DeepSeek-R1 Script Blueprint");
-    if (!hasTokens) return;
-
     setIsGeneratingScript(true);
     try {
       const response = await fetch('/api/manga/blueprint', {
@@ -1473,9 +1190,6 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
 
   // Step 3: SiliconFlow / ApiFrame Qwen-Image-Edit Composition with True Multi-Reference Blending
   const handleRenderPanelWithQwen = async () => {
-    const hasTokens = await deductTokens(2, "Render Manga Panel Frame");
-    if (!hasTokens) return;
-
     setIsRenderingPanel(true);
     handleUpdatePanel(activePanel.id, { renderingStatus: 'GENERATING' });
     
@@ -1567,31 +1281,11 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
       }
 
       if (data.success && (data.image_url || data.edited_image_url)) {
-        const finalUrl = data.image_url || data.edited_image_url;
         handleUpdatePanel(activePanel.id, {
           isRendered: true,
           renderingStatus: 'COMPLETED',
-          imageUrl: finalUrl
+          imageUrl: data.image_url || data.edited_image_url
         });
-
-        // Universal Database Vault: Automatically archive panel to universal storage
-        try {
-          UniversalVault.savePanel(
-            {
-              ...activePanel,
-              imageUrl: finalUrl,
-              isRendered: true,
-              renderingStatus: 'COMPLETED'
-            },
-            activePageIndex + 1,
-            currentChapter,
-            activeSeries?.id || 'ser_cyber_aethel',
-            activeSeries?.title || 'Untitled Manga'
-          );
-          triggerUniversalVaultSave();
-        } catch (vaultErr) {
-          console.warn("Universal panel auto-vault error:", vaultErr);
-        }
       } else {
         throw new Error(data.error || "Panel rendering returned empty response");
       }
@@ -1606,7 +1300,7 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
     }
   };
 
-  // High-Res DOM Capture Helper with Anti-Distortion Typography Locking
+  // High-Res DOM Capture Helper
   const captureFullPage = async (): Promise<string | undefined> => {
     try {
       const pageNode = document.getElementById('manga-page-grid');
@@ -1618,33 +1312,22 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
 
       const canvas = await html2canvas(pageNode, { 
         useCORS: true, 
-        scale: 2.5, 
+        scale: 3, 
         backgroundColor: '#ffffff',
         logging: false,
         onclone: (clonedDoc) => {
-          // Normalize all speech bubbles and text nodes inside the cloned DOM
-          const bubbles = clonedDoc.querySelectorAll('.speech-bubble-container, .speech-bubble-text, #manga-page-grid *');
-          bubbles.forEach((el: any) => {
-            if (el.style) {
-              el.style.textShadow = 'none';
-              el.style.filter = 'none';
-              el.style.boxShadow = 'none';
-            }
-          });
-          const textNodes = clonedDoc.querySelectorAll('.speech-bubble-text');
-          textNodes.forEach((el: any) => {
-            if (el.style) {
-              el.style.color = '#000000';
-              el.style.fontWeight = '800';
-              el.style.webkitFontSmoothing = 'antialiased';
-            }
+          const dropShadows = clonedDoc.querySelectorAll('[class*="drop-shadow"]');
+          dropShadows.forEach(el => {
+            (el as HTMLElement).style.filter = 'none';
+            (el as HTMLElement).style.boxShadow = 'none';
+            (el as HTMLElement).style.textShadow = 'none';
           });
         }
       });
 
       editButtons.forEach(el => el.classList.remove('invisible'));
 
-      return canvas.toDataURL('image/jpeg', 0.95);
+      return canvas.toDataURL('image/jpeg', 0.92);
     } catch (err) {
       console.error("Failed to capture page:", err);
       return undefined;
@@ -1918,9 +1601,6 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
     e.preventDefault();
     if (!mangaCharName.trim()) return;
 
-    const hasTokens = await deductTokens(3, `Generate Character Turnaround Sheet (${mangaCharName})`);
-    if (!hasTokens) return;
-
     let finalDescriptor = '';
     if (characterBuilderMode === 'guided') {
       if (charDemographic === 'custom' && !charDemographicCustom.trim()) {
@@ -1988,10 +1668,6 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
   const handleGenerateMangaEnvironment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!mangaEnvLocation.trim() || !mangaEnvStyle.trim()) return;
-
-    const hasTokens = await deductTokens(2, `Generate Manga Background (${mangaEnvLocation})`);
-    if (!hasTokens) return;
-
     setIsGeneratingMangaEnv(true);
     try {
       const response = await fetch('/api/assets/environments/generate', {
@@ -2065,22 +1741,85 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
     setTimeout(() => setCopiedPayload(false), 2000);
   };
 
-  // Render speech bubble overlay on top of panel
+  // Render SVG speech bubbles on top of the image to look like a real manga page
   const renderSpeechBubbleSVG = (panel: MangaPanel) => {
-    if (!panel.speechText || !panel.speechText.trim()) return null;
+    const textLines = panel.speechText.match(/.{1,18}(\s|$)/g) || [panel.speechText];
+    const maxLineLen = Math.max(...textLines.map(l => l.length));
+    const bubbleWidth = maxLineLen * 7.5 + 40;
+    const bubbleHeight = textLines.length * 15 + 40;
+
+    const clampedScale = Math.min(panel.bubbleScale, 1.3);
+
+    // Keep bubble coordinates strictly inside the panel area to avoid border clipping.
+    let safeX = panel.bubbleX;
+    let safeY = panel.bubbleY;
+
+    // Boundary safety: if panel is 1-indexed third panel (e.g., sharing the bottom row and is narrow at 40% width)
+    const isNarrowPanel = panel.panelIndex === 3;
+    if (isNarrowPanel) {
+      safeX = Math.max(20, Math.min(safeX, 80));
+      safeY = Math.max(20, Math.min(safeY, 80));
+    } else {
+      safeX = Math.max(12, Math.min(safeX, 88));
+      safeY = Math.max(12, Math.min(safeY, 88));
+    }
+
+    // Smart border compensation translation:
+    // When the coordinate approaches the edge, smoothly shift the origin alignment away from -50%
+    // so the bubble remains perfectly padded inside the panel borders instead of spilling out.
+    let translateX = -50;
+    if (safeX < 35) {
+      translateX = -50 * (safeX / 35);
+    } else if (safeX > 65) {
+      translateX = -50 - 50 * ((safeX - 65) / 35);
+    }
+
+    let translateY = -50;
+    if (safeY < 35) {
+      translateY = -50 * (safeY / 35);
+    } else if (safeY > 65) {
+      translateY = -50 - 50 * ((safeY - 65) / 35);
+    }
+
+    const pathD = () => {
+      if (panel.bubbleStyle === 'burst') {
+        // Starburst path for intense action
+        return `M 0,0 L 15,-5 L 25,-15 L 45,-10 L 60,-25 L 85,-15 L 105,-20 L 115,-5 L 135,0 L 125,15 L 140,25 L 120,35 L 130,55 L 110,50 L 95,65 L 80,50 L 60,60 L 50,45 L 30,50 L 20,35 L -5,30 L 5,15 Z`;
+      } else if (panel.bubbleStyle === 'thought') {
+        // Thought bubble clouds
+        return `M 10,15 A 12,12 0 0,1 30,10 A 15,15 0 0,1 60,8 A 12,12 0 0,1 80,12 A 12,12 0 0,1 90,25 A 10,10 0 0,1 85,40 A 15,15 0 0,1 65,45 A 12,12 0 0,1 35,46 A 12,12 0 0,1 15,40 A 10,10 0 0,1 10,25 Z`;
+      } else {
+        // Oval bubble with tail
+        return `M 10,15 C 10,5 30,5 50,5 C 70,5 90,5 90,15 C 90,25 70,25 50,25 C 40,25 35,32 30,25 C 20,25 10,25 10,15 Z`;
+      }
+    };
 
     return (
       <div 
-        className="absolute pointer-events-none select-none z-30 transform -translate-x-1/2 -translate-y-1/2"
+        className="absolute pointer-events-none select-none z-30"
         style={{
-          left: `${panel.bubbleX}%`,
-          top: `${panel.bubbleY}%`,
-          transform: `translate(-50%, -50%) scale(${panel.bubbleScale || 1.0})`,
-          maxWidth: '220px'
+          left: `${safeX}%`,
+          top: `${safeY}%`,
+          transform: `translate(${translateX}%, ${translateY}%) scale(${clampedScale})`,
+          maxWidth: '32cqw',
         }}
       >
-        <div className="relative bg-white text-black font-extrabold text-[10px] md:text-xs px-3.5 py-2 rounded-2xl border-2 border-black shadow-lg text-center leading-tight font-sans break-words">
+        <div className="relative bg-white text-black text-[2.1cqw] font-bold leading-tight border-[0.4cqw] border-black rounded-full px-[2.2cqw] py-[1.5cqw] text-center select-none font-sans max-w-[28cqw] shadow-sm">
           {panel.speechText}
+          
+          {/* Bubble Tail */}
+          {panel.bubbleStyle === 'oval' && (
+            <div className="absolute bottom-[-1.2cqw] left-[35%] w-0 h-0 border-l-[0.9cqw] border-l-transparent border-r-[0.9cqw] border-r-transparent border-t-[1.2cqw] border-t-white before:absolute before:bottom-[0.1cqw] before:left-[-0.9cqw] before:w-0 before:h-0 before:border-l-[0.9cqw] before:border-l-transparent before:border-r-[0.9cqw] before:border-r-transparent before:border-t-[1.2cqw] before:border-t-black before:z-[-1]"></div>
+          )}
+          {panel.bubbleStyle === 'burst' && (
+            <div className="absolute -inset-[0.3cqw] border-[0.3cqw] border-dashed border-red-500 rounded-full pointer-events-none opacity-40"></div>
+          )}
+          {panel.bubbleStyle === 'thought' && (
+            <div className="absolute bottom-[-2cqw] left-[45%] flex flex-col gap-[0.3cqw] items-center">
+              <div className="w-[1.2cqw] h-[1.2cqw] bg-white border-[0.2cqw] border-black rounded-full"></div>
+              <div className="w-[0.8cqw] h-[0.8cqw] bg-white border-[0.2cqw] border-black rounded-full"></div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -2114,52 +1853,44 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto shrink-0 border-t md:border-t-0 pt-4 md:pt-0 border-slate-800">
-          {/* Universal Vault Live Status Badge (Smart Automatic Syncing) */}
-          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-[11px] font-mono shadow-inner">
-            <span className={`h-2 w-2 rounded-full ${
-              vaultSyncStatus === 'synced' ? 'bg-emerald-400 animate-pulse' :
-              vaultSyncStatus === 'saving' ? 'bg-amber-400 animate-spin' : 'bg-slate-500'
-            }`} />
-            <span className="text-slate-400 font-bold">Auto-Vault:</span>
-            <span className={vaultSyncStatus === 'synced' ? 'text-emerald-400 font-bold' : 'text-amber-400 font-bold'}>
-              {vaultSyncStatus === 'synced' ? '⚡ Live Synced' : vaultSyncStatus === 'saving' ? 'Syncing...' : 'Ready'}
-            </span>
-          </div>
-
-          {/* Top Vault: Story Vault Only */}
           <button
-            onClick={() => setIsProjectsVaultOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 text-xs font-bold transition-all cursor-pointer shadow-sm"
-            title="Open Universal Manga Projects & Stories Database (Story Vault)"
+            onClick={() => setIsCharacterVaultOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-semibold transition-all"
+            title="Smart Character & Environment Vault"
           >
-            <FolderGit2 className="h-3.5 w-3.5 text-indigo-400" />
-            <span>Story Vault ({universalProjects.length})</span>
+            <UserCheck className="h-3.5 w-3.5 text-amber-400" />
+            <span>Character Vault</span>
           </button>
-
+          <button
+            onClick={() => setIsPanelVaultOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-semibold transition-all"
+            title="Smart Panel Storage Vault"
+          >
+            <ImageIcon className="h-3.5 w-3.5 text-emerald-400" />
+            <span>Panel Vault</span>
+          </button>
           <button
             onClick={() => setIsChaptersGalleryOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-semibold transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-semibold transition-all"
             title="Chapters, Pages & Stories Gallery"
           >
             <Layers className="h-3.5 w-3.5 text-indigo-400" />
-            <span>Pages Gallery</span>
+            <span>Chapters Gallery</span>
           </button>
-
           <button
             onClick={() => {
               setIsStorageHubOpen(true);
               fetchStorageFiles();
             }}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-semibold transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-semibold transition-all"
             title="Vercel Cloud Storage & Neon DB Sync Hub"
           >
             <Cloud className="h-3.5 w-3.5 text-sky-400 animate-pulse" />
-            <span>Storage Hub</span>
+            <span>Cloud Sync Hub</span>
           </button>
-
           <button
             onClick={onBackToHome}
-            className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-semibold transition-all cursor-pointer"
+            className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-semibold transition-all"
           >
             <ArrowLeft className="h-3.5 w-3.5 text-rose-400" />
             <span>Studio Hub</span>
@@ -2168,14 +1899,14 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
           <button
             onClick={handleAssemblePage}
             disabled={isAssemblingPage}
-            className="flex items-center justify-center gap-1.5 px-5 py-2 rounded-xl bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white text-xs font-bold shadow-md shadow-rose-600/30 transition-all active:scale-95 cursor-pointer"
+            className="flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white text-xs font-bold shadow-md shadow-rose-600/30 transition-all active:scale-95 cursor-pointer"
           >
             {isAssemblingPage ? (
               <RefreshCw className="h-3.5 w-3.5 animate-spin" />
             ) : (
               <Printer className="h-3.5 w-3.5" />
             )}
-            <span>Assemble Page</span>
+            <span>Assemble Page (Pillow)</span>
           </button>
         </div>
       </div>
@@ -2282,115 +2013,53 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
             
             {/* CANVAS HEADER CONTROLS */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between border-b border-slate-800/80 pb-4 gap-4">
-              <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800/80 pb-4 gap-4">
+              <div className="flex items-center gap-2">
                 <Layout className="h-4 w-4 text-rose-400" />
-                <div>
-                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-200">
-                    Story Page {activePageIndex + 1} of {pages.length || 1}
-                  </span>
-                  <span className="text-[10px] text-slate-500 font-mono block">
-                    {panels.length} Panels • Layout: {getActivePageTemplate()}
-                  </span>
-                </div>
+                <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-300">
+                  Manga Page Grid Layout (Page {activePageIndex + 1} of {pages.length || 1})
+                </span>
               </div>
               
-              <div className="flex flex-wrap items-center gap-2">
-                {/* Page Navigation & Management Actions */}
-                <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+              <div className="flex items-center gap-2">
+                {activeWorkflowStep === 3 && (
                   <button 
-                    onClick={() => handleSwitchPage(activePageIndex - 1)}
-                    disabled={activePageIndex === 0}
-                    className="p-1.5 hover:bg-slate-800 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-slate-300"
-                    title="Previous Page"
+                    onClick={handleAddPanelManual}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-bold rounded-lg border border-slate-700 transition-all"
                   >
-                    <ArrowLeft className="h-3.5 w-3.5" />
+                    <Sparkles className="h-3.5 w-3.5 text-rose-400" />
+                    <span>Add Panel</span>
                   </button>
-                  
-                  <div className="flex items-center gap-1 px-1.5 max-w-[180px] overflow-x-auto">
-                    {pages.map((p, idx) => (
-                      <button
-                        key={p.id || idx}
-                        onClick={() => handleSwitchPage(idx)}
-                        className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold transition-all ${
-                          activePageIndex === idx 
-                            ? 'bg-rose-600 text-white shadow-sm shadow-rose-600/30' 
-                            : 'bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800'
-                        }`}
-                        title={`Switch to Page ${idx + 1}`}
-                      >
-                        P{idx + 1}
-                      </button>
-                    ))}
-                  </div>
-
-                  <button 
-                    onClick={() => handleSwitchPage(activePageIndex + 1)}
-                    disabled={activePageIndex === pages.length - 1}
-                    className="p-1.5 hover:bg-slate-800 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-slate-300"
-                    title="Next Page"
-                  >
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-
-                {/* Page Order & Organization Controls */}
-                <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
-                  <button
-                    onClick={() => handleMovePage(activePageIndex, 'up')}
-                    disabled={activePageIndex === 0}
-                    className="px-2 py-1 hover:bg-slate-800 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed text-[10px] font-mono text-slate-300 transition-colors"
-                    title="Move Current Page Earlier"
-                  >
-                    ⬆️ Move Up
-                  </button>
-                  <button
-                    onClick={() => handleMovePage(activePageIndex, 'down')}
-                    disabled={activePageIndex === pages.length - 1}
-                    className="px-2 py-1 hover:bg-slate-800 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed text-[10px] font-mono text-slate-300 transition-colors"
-                    title="Move Current Page Later"
-                  >
-                    ⬇️ Move Down
-                  </button>
-                </div>
-
-                {/* Page Mutation Controls */}
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={handleAddPage}
-                    className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold rounded-xl transition-all cursor-pointer"
-                    title="Add a new blank page to this manga story"
-                  >
-                    <Plus className="h-3 w-3" />
-                    <span>New Page</span>
-                  </button>
-                  <button
-                    onClick={() => handleDuplicatePage(activePageIndex)}
-                    className="flex items-center gap-1 px-2.5 py-1.5 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 text-[10px] font-bold rounded-xl transition-all cursor-pointer"
-                    title="Clone active page and its panels"
-                  >
-                    <Copy className="h-3 w-3" />
-                    <span>Clone Page</span>
-                  </button>
-                  {pages.length > 1 && (
-                    <button
-                      onClick={() => handleDeletePage(activePageIndex)}
-                      className="flex items-center gap-1 px-2 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-[10px] font-bold rounded-xl transition-all cursor-pointer"
-                      title="Delete active page"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  )}
-                  {activeWorkflowStep === 3 && (
+                )}
+                
+                {pages.length > 1 && (
+                  <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800">
                     <button 
-                      onClick={handleAddPanelManual}
-                      className="flex items-center gap-1 px-2.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-bold rounded-xl transition-all shadow-md shadow-rose-600/20 cursor-pointer"
+                      onClick={() => handleSwitchPage(activePageIndex - 1)}
+                      disabled={activePageIndex === 0}
+                      className="p-1 hover:bg-slate-800 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                     >
-                      <Sparkles className="h-3 w-3" />
-                      <span>+ Panel</span>
+                      <ArrowLeft className="h-4 w-4 text-slate-400" />
                     </button>
-                  )}
-                </div>
+                    <div className="flex gap-1 px-2">
+                      {pages.map((_, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => handleSwitchPage(idx)}
+                          className={`h-2 w-2 rounded-full transition-all ${activePageIndex === idx ? 'bg-rose-500 w-4' : 'bg-slate-700 hover:bg-slate-500'}`}
+                          title={`Go to Page ${idx + 1}`}
+                        />
+                      ))}
+                    </div>
+                    <button 
+                      onClick={() => handleSwitchPage(activePageIndex + 1)}
+                      disabled={activePageIndex === pages.length - 1}
+                      className="p-1 hover:bg-slate-800 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ArrowRight className="h-4 w-4 text-slate-400" />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -2497,14 +2166,15 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
               </div>
             </div>
 
-            {/* MANGA GENTLEMAN GRID WORKSPACE (PORTRAIT ASPECT RATIO PRESERVED) */}
+            {/* MANGA GENTLEMAN GRID WORKSPACE (PORTRAIT ASPECT RATIO PRESERVED WITH DIRECT PROPORTIONAL SCALING) */}
             <div 
               id="manga-page-grid" 
-              className="bg-white border-8 border-black rounded-xl p-4 md:p-6 shadow-2xl relative w-full aspect-[1/1.58] max-h-[92vh] mx-auto overflow-hidden flex flex-col justify-between"
+              className="@container bg-white border-[1.2cqw] border-black rounded-xl p-[3.5cqw] shadow-2xl relative w-full aspect-[1/1.58] max-h-[92vh] mx-auto overflow-hidden flex flex-col justify-between"
+              style={{ containerType: 'inline-size' }}
             >
               
               {/* PAGE NUMBER ACCENT (EDITABLE & MOVED DOWN) */}
-              <div className="absolute bottom-1.5 left-1/2 transform -translate-x-1/2 text-[10px] font-black text-black font-mono tracking-widest uppercase z-20 flex items-center gap-1.5 group/footer">
+              <div className="absolute bottom-[0.8cqw] left-1/2 transform -translate-x-1/2 text-[1.6cqw] font-black text-black font-mono tracking-widest uppercase z-20 flex items-center gap-[1cqw] group/footer">
                 {isEditingFooter ? (
                   <input
                     type="text"
@@ -2512,12 +2182,12 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
                     onChange={(e) => setMangaPageFooterText(e.target.value)}
                     onBlur={() => setIsEditingFooter(false)}
                     autoFocus
-                    className="bg-slate-100 border border-black text-black text-[10px] px-2 py-0.5 font-mono rounded text-center outline-none shadow-sm"
+                    className="bg-slate-100 border border-black text-black text-[1.6cqw] px-[1.2cqw] py-[0.3cqw] font-mono rounded text-center outline-none shadow-sm"
                   />
                 ) : (
                   <span 
                     onClick={() => setIsEditingFooter(true)}
-                    className="cursor-pointer hover:bg-slate-200/90 px-2 py-0.5 rounded transition-colors"
+                    className="cursor-pointer hover:bg-slate-200/90 px-[1.2cqw] py-[0.3cqw] rounded transition-colors"
                     title="Click to edit manga page footer text"
                   >
                     {mangaPageFooterText}
@@ -2525,18 +2195,18 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
                 )}
                 <button
                   onClick={() => setIsEditingFooter(!isEditingFooter)}
-                  className="opacity-0 group-hover/footer:opacity-100 text-[9px] bg-black text-white px-1.5 py-0.5 rounded transition-opacity"
+                  className="opacity-0 group-hover/footer:opacity-100 text-[1.4cqw] bg-black text-white px-[1cqw] py-[0.3cqw] rounded transition-opacity"
                 >
                   Edit
                 </button>
               </div>
 
               {/* GRID PANEL WRAPPER */}
-              <div className="flex flex-col h-full justify-between gap-2 md:gap-3 relative flex-1 mb-6">
+              <div className="flex flex-col h-full justify-between gap-[1.5cqw] relative flex-1 mb-[2.5cqw]">
                 {getPageRows(panels, getActivePageTemplate()).map((row, rowIndex) => (
                   <div
                     key={rowIndex}
-                    className="flex flex-row gap-2 md:gap-3 w-full"
+                    className="flex flex-row gap-[1.5cqw] w-full"
                     style={{ height: row.height }}
                   >
                     {row.rowPanels.map(({ panel, width }) => {
@@ -2548,55 +2218,33 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
                           key={panel.id}
                           id={`manga-panel-${panel.id}`}
                           onClick={() => handleSelectPanel(panel.id)}
-                          className={`relative overflow-hidden group cursor-pointer border-4 transition-all duration-200 h-full ${
+                          className={`relative overflow-hidden group cursor-pointer border-[0.7cqw] transition-all duration-200 h-full ${
                             isSelected 
                               ? 'border-rose-500 ring-4 ring-rose-500/20 shadow-2xl scale-[1.005] z-10' 
                               : 'border-black hover:border-slate-800'
                           }`}
                           style={{ width }}
                         >
-                          {/* Quick Panel Actions on Hover */}
-                          {activeWorkflowStep >= 3 && (
-                            <div className="absolute top-2 right-2 z-20 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              {panel.imageUrl && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    UniversalVault.savePanel(
-                                      panel,
-                                      activePageIndex + 1,
-                                      currentChapter,
-                                      activeSeries?.id || 'ser_cyber_aethel',
-                                      activeSeries?.title || 'Untitled Manga'
-                                    );
-                                    loadUniversalVaultData();
-                                    showToast(`✨ Archived Panel ${panel.panelIndex} to Universal Vault!`);
-                                  }}
-                                  className="bg-emerald-600/90 hover:bg-emerald-600 text-white p-1.5 rounded-lg backdrop-blur-sm shadow"
-                                  title="Archive to Universal Panel Vault"
-                                >
-                                  <Save className="h-3.5 w-3.5 text-white" />
-                                </button>
-                              )}
+                          {/* Save Panel Button */}
+                          {panel.imageUrl && activeWorkflowStep >= 3 && (
+                            <div className="absolute top-[1.2cqw] right-[1.2cqw] z-20 flex gap-[0.8cqw] opacity-0 group-hover:opacity-100 transition-opacity">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleDeletePanel(panel.id);
                                 }}
-                                className="bg-rose-600/80 hover:bg-rose-600 text-white p-1.5 rounded-lg backdrop-blur-sm shadow"
+                                className="bg-rose-600/60 hover:bg-rose-600 text-white p-[1cqw] rounded-lg backdrop-blur-sm"
                                 title="Delete this panel"
                               >
-                                <Trash2 className="h-3.5 w-3.5" />
+                                <Trash2 className="h-[2.5cqw] w-[2.5cqw]" />
                               </button>
-                              {panel.imageUrl && (
-                                <button
-                                  onClick={(e) => handleSavePanel(panel.id, globalIndex, e)}
-                                  className="bg-black/80 hover:bg-black text-white p-1.5 rounded-lg backdrop-blur-sm shadow"
-                                  title="Download this panel image"
-                                >
-                                  <Download className="h-3.5 w-3.5 text-emerald-400" />
-                                </button>
-                              )}
+                              <button
+                                onClick={(e) => handleSavePanel(panel.id, globalIndex, e)}
+                                className="bg-black/60 hover:bg-black/90 text-white p-[1cqw] rounded-lg backdrop-blur-sm"
+                                title="Save this panel"
+                              >
+                                <Download className="h-[2.5cqw] w-[2.5cqw] text-emerald-400" />
+                              </button>
                             </div>
                           )}
                           {/* Black and white filter applied to match true retro Gekiga shading */}
@@ -2611,7 +2259,7 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
                           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-transparent via-transparent to-black/10 mix-blend-multiply pointer-events-none" />
 
                           {/* Panel Number Badge */}
-                          <div className="absolute top-2 left-2 bg-black text-white text-[10px] font-black font-mono h-5 w-5 flex items-center justify-center rounded">
+                          <div className="absolute top-[1.2cqw] left-[1.2cqw] bg-black text-white text-[1.6cqw] font-black font-mono h-[3.2cqw] w-[3.2cqw] flex items-center justify-center rounded-[0.5cqw]">
                             {panel.panelIndex}
                           </div>
 
@@ -2620,8 +2268,8 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
 
                           {/* Selected Panel Accent */}
                           {isSelected && (
-                            <div className="absolute inset-0 border-2 border-rose-500 pointer-events-none">
-                              <div className="absolute bottom-2 right-2 bg-rose-500 text-white font-mono text-[9px] font-bold px-2 py-0.5 rounded tracking-wider uppercase shadow-md">
+                            <div className="absolute inset-0 border-[0.6cqw] border-rose-500 pointer-events-none">
+                              <div className="absolute bottom-[1.2cqw] right-[1.2cqw] bg-rose-500 text-white font-mono text-[1.4cqw] font-bold px-[1.2cqw] py-[0.3cqw] rounded tracking-wider uppercase shadow-md">
                                 Selected Panel {panel.panelIndex}
                               </div>
                             </div>
@@ -2667,19 +2315,9 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
                     Step 1: Plot & Storyboard Layout
                   </h3>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setIsProjectsVaultOpen(true)}
-                    className="text-[10px] font-mono font-bold bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 px-2.5 py-1 rounded-lg border border-indigo-500/30 flex items-center gap-1 transition-all cursor-pointer"
-                    title="Open Story Vault to pick or load saved screenplays & projects"
-                  >
-                    <FolderGit2 className="h-3 w-3 text-indigo-400" />
-                    <span>Story Vault ({universalProjects.length})</span>
-                  </button>
-                  <span className="text-[10px] text-rose-400 font-mono font-bold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
-                    DeepSeek-R1
-                  </span>
-                </div>
+                <span className="text-[10px] text-rose-400 font-mono font-bold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+                  DeepSeek-R1
+                </span>
               </div>
 
               <div className="space-y-4">
@@ -2814,22 +2452,12 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
                 <div className="flex items-center gap-2">
                   <UserCheck className="h-4 w-4 text-rose-400" />
                   <h3 className="font-bold text-slate-100 text-sm font-['Cinzel',serif]">
-                    Step 2: Character & Model Sheet Stage
+                    Step 2: Permanent Continuity Vault
                   </h3>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setIsCharacterVaultOpen(true)}
-                    className="text-[10px] font-mono font-bold bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 px-2.5 py-1 rounded-lg border border-amber-500/30 flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
-                    title="Open Character & Environment Vault"
-                  >
-                    <UserCheck className="h-3 w-3 text-amber-400" />
-                    <span>Character Vault ({characters.length})</span>
-                  </button>
-                  <span className="text-[10px] text-rose-400 font-mono font-bold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
-                    Neon PostgreSQL
-                  </span>
-                </div>
+                <span className="text-[10px] text-rose-400 font-mono font-bold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+                  Neon PostgreSQL
+                </span>
               </div>
 
               {/* SMART SCRIPT CONTINUITY SCANNER */}
@@ -3513,19 +3141,9 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
                     Step 3: Qwen Panel Composition
                   </h3>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setIsCharacterVaultOpen(true)}
-                    className="text-[10px] font-mono font-bold bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 px-2.5 py-1 rounded-lg border border-sky-500/30 flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
-                    title="Open Stage & Environment Keyframe Vault"
-                  >
-                    <FolderGit2 className="h-3 w-3 text-sky-400" />
-                    <span>Stage Vault ({environments.length})</span>
-                  </button>
-                  <span className="text-[10px] text-rose-400 font-mono font-bold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
-                    Qwen-Image-Edit
-                  </span>
-                </div>
+                <span className="text-[10px] text-rose-400 font-mono font-bold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+                  Qwen-Image-Edit
+                </span>
               </div>
 
               <div className="space-y-4">
@@ -3849,19 +3467,9 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
                     Step 4: Pillow Dialogue Bubble Engine
                   </h3>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setIsPanelVaultOpen(true)}
-                    className="text-[10px] font-mono font-bold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 px-2.5 py-1 rounded-lg border border-emerald-500/30 flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
-                    title="Open Saved Panels & Frames Vault"
-                  >
-                    <ImageIcon className="h-3 w-3 text-emerald-400" />
-                    <span>Panels Vault ({universalPanels.length})</span>
-                  </button>
-                  <span className="text-[10px] text-rose-400 font-mono font-bold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
-                    Local Python PIL
-                  </span>
-                </div>
+                <span className="text-[10px] text-rose-400 font-mono font-bold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+                  Local Python PIL
+                </span>
               </div>
 
               <div className="space-y-4">

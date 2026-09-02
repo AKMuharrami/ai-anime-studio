@@ -8,6 +8,7 @@ export interface User {
   wallet_balance: number; // Strictly >= 0.00
   subscription_tier?: SubscriptionTier;
   subscription_status?: 'ACTIVE' | 'INACTIVE';
+  is_admin?: boolean;
   created_at: string;
 }
 

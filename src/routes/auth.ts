@@ -31,7 +31,7 @@ router.post('/register', async (req, res) => {
       email,
       password_hash: passwordHash,
       is_verified: false,
-      wallet_balance: 5.0 // Exactly 50 Starting Studio Tokens ($5.00)
+      wallet_balance: 50.0 // Starting balance limited to 50 tokens
     }).returning();
 
     const user = newUser[0];
@@ -131,13 +131,16 @@ router.post('/login', async (req, res) => {
       expiresIn: '7d'
     });
 
+    const isAdmin = user.email.toLowerCase() === 'akmuharrami@gmail.com' || user.email.toLowerCase().startsWith('admin');
+
     res.json({
       success: true,
       token,
       user: {
         id: user.id,
         email: user.email,
-        wallet_balance: user.wallet_balance
+        wallet_balance: user.wallet_balance,
+        is_admin: isAdmin
       }
     });
   } catch (err: any) {
@@ -157,12 +160,15 @@ router.get('/me', requireAuth, async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
     const user = userResult[0];
+    const isAdmin = user.email.toLowerCase() === 'akmuharrami@gmail.com' || user.email.toLowerCase().startsWith('admin');
+
     res.json({
       success: true,
       user: {
         id: user.id,
         email: user.email,
-        wallet_balance: user.wallet_balance
+        wallet_balance: user.wallet_balance,
+        is_admin: isAdmin
       }
     });
   } catch (err: any) {

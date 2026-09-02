@@ -63,9 +63,12 @@ export const DatabaseArchitectureModal: React.FC<DatabaseArchitectureModalProps>
   const fetchStatus = async () => {
     setIsCheckingStatus(true);
     try {
+      const token = localStorage.getItem('ais_token');
+      const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
+
       const [configRes, dbRes] = await Promise.all([
-        fetch('/api/config/status').then(r => r.json()).catch(() => null),
-        fetch('/api/db/status').then(r => r.json()).catch(() => null)
+        fetch('/api/config/status', { headers }).then(r => r.json()).catch(() => null),
+        fetch('/api/db/status', { headers }).then(r => r.json()).catch(() => null)
       ]);
 
       if (configRes) setServicesConfig(configRes);
@@ -126,9 +129,13 @@ export const DatabaseArchitectureModal: React.FC<DatabaseArchitectureModalProps>
     setQueryResult(null);
 
     try {
+      const token = localStorage.getItem('ais_token');
       const res = await fetch('/api/db/query', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({ query: customQuery })
       });
 
