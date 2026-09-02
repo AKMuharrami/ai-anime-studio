@@ -39,6 +39,9 @@ function checkServerShariahViolation(prompt: string): { isViolation: boolean; re
 
   for (const term of nudityTerms) {
     if (lower.includes(term)) {
+      if (term === 'breast' && (lower.includes('breastplate') || lower.includes('breastplates'))) {
+        continue;
+      }
       return { isViolation: true, reason: `Shariah Violation Detected: Nudity concept ("${term}") is prohibited.` };
     }
   }
