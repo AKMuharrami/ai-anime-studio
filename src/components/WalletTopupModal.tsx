@@ -210,6 +210,9 @@ export const WalletTopupModal: React.FC<WalletTopupModalProps> = ({
                         if (isNaN(val) || val <= 0) return Promise.reject();
                         return actions.order.create({
                           intent: "CAPTURE",
+                          application_context: {
+                            shipping_preference: "NO_SHIPPING"
+                          },
                           purchase_units: [
                             {
                               amount: {
@@ -294,6 +297,9 @@ export const WalletTopupModal: React.FC<WalletTopupModalProps> = ({
                           if (!tierObj) return Promise.reject();
                           return actions.order.create({
                             intent: "CAPTURE",
+                            application_context: {
+                              shipping_preference: "NO_SHIPPING"
+                            },
                             purchase_units: [
                               {
                                 description: `${tierObj.name} Subscription`,
