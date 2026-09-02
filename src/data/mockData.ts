@@ -2,9 +2,11 @@ import { FullProjectState, User, Series, Episode, Character, Environment, Scene,
 
 export const INITIAL_USER: User = {
   id: 'usr_8829_alpha_neon',
-  email: 'akmuharrami@gmail.com',
-  wallet_balance: 1420.50, // No-Debt prepaid balance >= 0.00
-  created_at: '2026-08-20T10:00:00Z',
+  email: 'creator@animestudio.ai',
+  wallet_balance: 5.00, // 50 Initial Studio Tokens (1 USD = 10 Tokens)
+  subscription_tier: 'FREE',
+  subscription_status: 'INACTIVE',
+  created_at: '2026-09-01T10:00:00Z',
 };
 
 export const INITIAL_SERIES: Series[] = [

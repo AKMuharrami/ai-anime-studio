@@ -3019,7 +3019,7 @@ app.get("/api/studio/credits", requireAuth, async (req: AuthRequest, res) => {
       }
       return res.json({
         success: true,
-        credits: Math.floor(userBalance), // Credits represent their topped-up balance 1:1, defaulting to 0
+        credits: Math.floor(userBalance * 10), // Credits represent their studio tokens (1 USD = 10 Tokens, starts at 50)
         team_name: "Personal Workspace",
         email: req.user?.email,
         plan: "Community",
@@ -5063,16 +5063,30 @@ app.post("/api/wallet/subscribe", requireAuth, async (req: AuthRequest, res) => 
       return res.status(400).json({ error: 'Invalid subscription tier' });
     }
 
+    const tierBonuses: Record<string, number> = {
+      'STARTER': 100.0,    // 1,000 Tokens ($100 compute value)
+      'PRO': 500.0,        // 5,000 Tokens ($500 compute value)
+      'ENTERPRISE': 2000.0,// 20,000 Tokens ($2,000 compute value)
+      'FREE': 0.0
+    };
+
+    const addedAmount = tierBonuses[tier] || 0;
+    const userResult = await db.select().from(users).where(eq(users.id, req.user.id));
+    const currentBalance = userResult.length > 0 ? userResult[0].wallet_balance : 5.0;
+    const newBalance = currentBalance + addedAmount;
+
     await db.update(users).set({ 
       subscription_tier: tier,
-      subscription_status: 'ACTIVE'
+      subscription_status: 'ACTIVE',
+      wallet_balance: newBalance
     }).where(eq(users.id, req.user.id));
 
     res.json({
       success: true,
-      message: `Successfully subscribed to ${tier} plan.`,
+      message: `Successfully subscribed to ${tier} plan! Credited ${(addedAmount * 10).toLocaleString()} Studio Tokens.`,
       subscription_tier: tier,
-      subscription_status: 'ACTIVE'
+      subscription_status: 'ACTIVE',
+      new_balance: newBalance
     });
   } catch (error: any) {
     if (error.message.includes('DATABASE_URL')) {

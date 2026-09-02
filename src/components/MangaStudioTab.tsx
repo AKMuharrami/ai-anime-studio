@@ -558,6 +558,9 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
 
   // Enhance a single character's reference turnaround sheet
   const handleAutoEnhanceCharacter = async (char: Character) => {
+    const hasTokens = await deductTokens(3, `Auto-Enhance Character Turnaround (${char.name})`);
+    if (!hasTokens) return;
+
     setEnhancingCharId(char.id);
     setEnhanceProgressMsg(`Synthesizing 4-angle turnaround blueprint for "${char.name}"...`);
     try {
@@ -592,6 +595,9 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
 
   // Batch enhance all insufficient characters in the project
   const handleBatchAutoEnhanceAll = async () => {
+    const hasTokens = await deductTokens(6, "Batch Upgrade All Characters with 4-Angle Model Sheets");
+    if (!hasTokens) return;
+
     setIsBatchEnhancing(true);
     setEnhanceProgressMsg("Scanning project characters for placeholder/insufficient references...");
     try {
@@ -1312,6 +1318,9 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
   const handleGenerateMangaScript = async () => {
     if (!mangaPlotConcept.trim()) return;
     
+    const hasTokens = await deductTokens(5, "Generate DeepSeek-R1 Script Blueprint");
+    if (!hasTokens) return;
+
     setIsGeneratingScript(true);
     try {
       const response = await fetch('/api/manga/blueprint', {
@@ -1464,6 +1473,9 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
 
   // Step 3: SiliconFlow / ApiFrame Qwen-Image-Edit Composition with True Multi-Reference Blending
   const handleRenderPanelWithQwen = async () => {
+    const hasTokens = await deductTokens(2, "Render Manga Panel Frame");
+    if (!hasTokens) return;
+
     setIsRenderingPanel(true);
     handleUpdatePanel(activePanel.id, { renderingStatus: 'GENERATING' });
     
@@ -1906,6 +1918,9 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
     e.preventDefault();
     if (!mangaCharName.trim()) return;
 
+    const hasTokens = await deductTokens(3, `Generate Character Turnaround Sheet (${mangaCharName})`);
+    if (!hasTokens) return;
+
     let finalDescriptor = '';
     if (characterBuilderMode === 'guided') {
       if (charDemographic === 'custom' && !charDemographicCustom.trim()) {
@@ -1973,6 +1988,10 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
   const handleGenerateMangaEnvironment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!mangaEnvLocation.trim() || !mangaEnvStyle.trim()) return;
+
+    const hasTokens = await deductTokens(2, `Generate Manga Background (${mangaEnvLocation})`);
+    if (!hasTokens) return;
+
     setIsGeneratingMangaEnv(true);
     try {
       const response = await fetch('/api/assets/environments/generate', {
@@ -2046,125 +2065,23 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
     setTimeout(() => setCopiedPayload(false), 2000);
   };
 
-  // Render crisp vector speech bubbles on top of the image with zero shadow distortion
+  // Render speech bubble overlay on top of panel
   const renderSpeechBubbleSVG = (panel: MangaPanel) => {
     if (!panel.speechText || !panel.speechText.trim()) return null;
 
-    const clampedScale = Math.min(Math.max(panel.bubbleScale || 1.0, 0.75), 1.35);
-
-    // Keep bubble coordinates strictly inside the panel area to avoid border clipping.
-    let safeX = panel.bubbleX;
-    let safeY = panel.bubbleY;
-
-    const isNarrowPanel = panel.panelIndex === 3;
-    if (isNarrowPanel) {
-      safeX = Math.max(18, Math.min(safeX, 82));
-      safeY = Math.max(18, Math.min(safeY, 82));
-    } else {
-      safeX = Math.max(12, Math.min(safeX, 88));
-      safeY = Math.max(12, Math.min(safeY, 88));
-    }
-
-    let translateX = -50;
-    if (safeX < 35) {
-      translateX = -50 * (safeX / 35);
-    } else if (safeX > 65) {
-      translateX = -50 - 50 * ((safeX - 65) / 35);
-    }
-
-    let translateY = -50;
-    if (safeY < 35) {
-      translateY = -50 * (safeY / 35);
-    } else if (safeY > 65) {
-      translateY = -50 - 50 * ((safeY - 65) / 35);
-    }
-
     return (
       <div 
-        className="speech-bubble-container absolute pointer-events-none select-none z-30"
+        className="absolute pointer-events-none select-none z-30 transform -translate-x-1/2 -translate-y-1/2"
         style={{
-          left: `${safeX}%`,
-          top: `${safeY}%`,
-          transform: `translate(${translateX}%, ${translateY}%) scale(${clampedScale})`,
-          maxWidth: '200px',
-          filter: 'none',
-          textShadow: 'none'
+          left: `${panel.bubbleX}%`,
+          top: `${panel.bubbleY}%`,
+          transform: `translate(-50%, -50%) scale(${panel.bubbleScale || 1.0})`,
+          maxWidth: '220px'
         }}
       >
-        {panel.bubbleStyle === 'burst' ? (
-          // Crisp Action Starburst Manga Bubble
-          <div className="relative inline-flex items-center justify-center p-3 text-center">
-            <svg 
-              className="absolute inset-0 w-full h-full overflow-visible pointer-events-none" 
-              viewBox="0 0 100 100" 
-              preserveAspectRatio="none"
-            >
-              <polygon 
-                points="50,2 62,18 78,8 82,26 98,28 92,44 100,58 88,68 94,84 76,82 72,98 56,88 44,98 38,84 20,92 24,74 4,68 14,52 2,38 18,32 12,16 30,22 40,4" 
-                fill="#ffffff" 
-                stroke="#000000" 
-                strokeWidth="3.5" 
-                strokeLinejoin="miter" 
-              />
-            </svg>
-            <span 
-              className="speech-bubble-text relative z-10 text-black text-[10px] md:text-xs font-black uppercase tracking-tight font-sans leading-tight px-3 py-1.5 max-w-[160px] block break-words"
-              style={{ color: '#000000', textShadow: 'none', WebkitFontSmoothing: 'antialiased' }}
-            >
-              {panel.speechText}
-            </span>
-          </div>
-        ) : panel.bubbleStyle === 'thought' ? (
-          // Crisp Thought Cloud Bubble
-          <div className="relative inline-flex flex-col items-center">
-            <div 
-              className="relative bg-white text-black text-[9px] md:text-xs font-extrabold leading-snug border-[2.5px] border-black rounded-[22px] px-3.5 py-2 text-center font-sans max-w-[170px] break-words"
-              style={{ color: '#000000', textShadow: 'none', WebkitFontSmoothing: 'antialiased' }}
-            >
-              <span className="speech-bubble-text">{panel.speechText}</span>
-            </div>
-            {/* Thought trailing circles */}
-            <div className="flex flex-col gap-1 items-center mt-1 -mb-3">
-              <div className="w-2.5 h-2.5 bg-white border-2 border-black rounded-full" />
-              <div className="w-1.5 h-1.5 bg-white border-2 border-black rounded-full" />
-            </div>
-          </div>
-        ) : panel.bubbleStyle === 'whisper' ? (
-          // Crisp Whisper Dashed Bubble
-          <div className="relative inline-flex items-center justify-center">
-            <div 
-              className="relative bg-white text-black text-[9px] md:text-xs font-bold italic leading-snug border-2 border-dashed border-black rounded-[20px] px-3.5 py-2 text-center font-sans max-w-[160px] break-words"
-              style={{ color: '#000000', textShadow: 'none', WebkitFontSmoothing: 'antialiased' }}
-            >
-              <span className="speech-bubble-text">{panel.speechText}</span>
-            </div>
-          </div>
-        ) : (
-          // Crisp Classic Oval Manga Bubble with Seamless Solid Vector Tail
-          <div className="relative inline-flex flex-col items-center">
-            <div 
-              className="relative bg-white text-black text-[9px] md:text-xs font-black leading-snug border-[2.5px] border-black rounded-[24px] px-3.5 py-2 text-center font-sans max-w-[170px] break-words z-10"
-              style={{ color: '#000000', textShadow: 'none', WebkitFontSmoothing: 'antialiased' }}
-            >
-              <span className="speech-bubble-text">{panel.speechText}</span>
-            </div>
-            {/* Seamless SVG Tail pointing down */}
-            <svg 
-              className="w-4 h-3.5 -mt-[2px] z-0 overflow-visible" 
-              viewBox="0 0 20 16"
-            >
-              <path 
-                d="M 2,0 L 10,14 L 18,0 Z" 
-                fill="#ffffff" 
-                stroke="#000000" 
-                strokeWidth="2.5" 
-                strokeLinejoin="round" 
-              />
-              {/* White mask line to merge bubble border with tail interior */}
-              <line x1="3" y1="0" x2="17" y2="0" stroke="#ffffff" strokeWidth="4" />
-            </svg>
-          </div>
-        )}
+        <div className="relative bg-white text-black font-extrabold text-[10px] md:text-xs px-3.5 py-2 rounded-2xl border-2 border-black shadow-lg text-center leading-tight font-sans break-words">
+          {panel.speechText}
+        </div>
       </div>
     );
   };
@@ -2670,30 +2587,6 @@ export const MangaStudioTab: React.FC<MangaStudioTabProps> = ({
                           {/* Quick Panel Actions on Hover */}
                           {activeWorkflowStep >= 3 && (
                             <div className="absolute top-2 right-2 z-20 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              {globalIndex > 0 && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleMovePanel(globalIndex, 'up');
-                                  }}
-                                  className="bg-black/80 hover:bg-black text-white p-1.5 rounded-lg backdrop-blur-sm shadow text-[10px]"
-                                  title="Move Panel Earlier in Reading Order"
-                                >
-                                  ◀️
-                                </button>
-                              )}
-                              {globalIndex < panels.length - 1 && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleMovePanel(globalIndex, 'down');
-                                  }}
-                                  className="bg-black/80 hover:bg-black text-white p-1.5 rounded-lg backdrop-blur-sm shadow text-[10px]"
-                                  title="Move Panel Later in Reading Order"
-                                >
-                                  ▶️
-                                </button>
-                              )}
                               {panel.imageUrl && (
                                 <button
                                   onClick={(e) => {

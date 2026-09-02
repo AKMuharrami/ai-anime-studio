@@ -139,6 +139,10 @@ export const SoundVoiceStudioTab: React.FC<SoundVoiceStudioTabProps> = ({
 
   const handleAdaptSoundscape = async () => {
     if (!activeScene) return;
+
+    const hasTokens = await deductTokens(1, "Acoustic Foley & Environmental Profiling");
+    if (!hasTokens) return;
+
     setIsAdaptingSoundscape(true);
     try {
       const res = await fetch('/api/assets/audio/adapt-scene-soundscape', {
@@ -261,6 +265,10 @@ export const SoundVoiceStudioTab: React.FC<SoundVoiceStudioTabProps> = ({
   const handleSynthesizeSingleLine = async (lineIdx: number) => {
     if (!activeScene || !activeScene.dialogue || !activeScene.dialogue[lineIdx]) return;
     const line = activeScene.dialogue[lineIdx];
+
+    const hasTokens = await deductTokens(1, `Synthesize Character Voice Line (${line.speaker})`);
+    if (!hasTokens) return;
+
     setSynthesizingLineIdx(lineIdx);
 
     try {
@@ -293,6 +301,10 @@ export const SoundVoiceStudioTab: React.FC<SoundVoiceStudioTabProps> = ({
 
   const handleBatchSynthesizeScene = async () => {
     if (!activeScene || !activeScene.dialogue || activeScene.dialogue.length === 0) return;
+
+    const hasTokens = await deductTokens(2, "Batch Synthesize Scene Dialogue");
+    if (!hasTokens) return;
+
     setIsBatchSynthesizingScene(true);
 
     try {

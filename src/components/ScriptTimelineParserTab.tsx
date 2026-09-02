@@ -89,6 +89,10 @@ export const ScriptTimelineParserTab: React.FC<ScriptTimelineParserTabProps> = (
 
   const handleParseScript = async () => {
     if (!plotInput.trim()) return;
+
+    const hasTokens = await deductTokens(3, "AI Screenplay Breakdown & Scene Decomposition");
+    if (!hasTokens) return;
+
     setIsParsing(true);
     setSyncStatusMsg(null);
 

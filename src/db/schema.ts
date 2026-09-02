@@ -19,7 +19,7 @@ export const users = pgTable('manga_users', {
   email: text('email').notNull().unique(),
   password_hash: text('password_hash').notNull(),
   is_verified: boolean('is_verified').default(false).notNull(),
-  wallet_balance: real('wallet_balance').default(100.0).notNull(), // Strictly >= 0.00
+  wallet_balance: real('wallet_balance').default(5.0).notNull(), // Strictly 50 Initial Studio Tokens ($5.00)
   subscription_tier: text('subscription_tier').default('FREE').notNull(),
   subscription_status: text('subscription_status').default('INACTIVE').notNull(),
   created_at: timestamp('created_at').defaultNow().notNull(),

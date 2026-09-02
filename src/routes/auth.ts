@@ -31,7 +31,7 @@ router.post('/register', async (req, res) => {
       email,
       password_hash: passwordHash,
       is_verified: false,
-      wallet_balance: 100.0 // Starting balance
+      wallet_balance: 5.0 // Exactly 50 Starting Studio Tokens ($5.00)
     }).returning();
 
     const user = newUser[0];
